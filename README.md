@@ -2,7 +2,7 @@
 
 Pre-flight checks for Android apps: **security issues** and **Google Play rejection risk**, before you upload.
 
-Works on Kotlin/Java Gradle projects, Unity, Godot 4, React Native and Flutter projects, and compiled `.apk` / `.aab` files. No dependencies, no API keys, no network calls — it reads your files and tells you what it found.
+Works on Kotlin/Java Gradle projects, Unity, Godot 4, React Native and Flutter projects, compiled `.apk` / `.aab` files, and **iOS / App Store** projects (Xcode/Swift, or the iOS side of a cross-platform app). No dependencies, no API keys, no network calls — it reads your files and tells you what it found.
 
 ```
 $ playgate scan .
@@ -53,10 +53,15 @@ playgate scan . --format md -o report.md
 playgate scan . --format json        # for CI or other tools
 playgate scan . --format sarif       # upload to GitHub code scanning
 playgate scan . --baseline prev.json # show only findings new since prev.json
+playgate release .                   # Google Play submission dry-run (GO / NO-GO)
 playgate rules                       # list every check
 playgate ui                          # open the local web interface
 playgate mcp                         # run as an MCP server (see "Dynamic agents")
 ```
+
+### `playgate release` — a submission dry-run
+
+`playgate release .` turns the scan into a Google Play readiness checklist that mirrors the actual submission flow: every real upload gate — target API, signing, privacy policy, Data Safety, restricted permissions, Play Billing, closed testing, security hygiene — rendered as `PASS` / `FAIL` / `NEEDS-INFO` with the Play Console location for each, and a single **GO / NO-GO** verdict. It exits `1` on any blocking gate, so it drops into a release pipeline. Give it a `--listing playgate.toml` to evaluate the store-side gates.
 
 ### The web interface
 
@@ -148,6 +153,7 @@ playgate scan . --baseline playgate-baseline.json         # in CI: only new find
 | Cloud / BaaS | open Firebase Firestore/RTDB/Storage rules (incl. "test mode"), Supabase migrations that never enable RLS, and **coverage findings** when a service is used but its security config lives server-side and can't be seen locally |
 | Unity | Mono backend, missing ARM64, game currency in `PlayerPrefs`, IAP with no receipt validation |
 | Godot | sensitive export permissions, missing release keystore, unsigned exports |
+| iOS / App Store | ATS disabled (`NSAllowsArbitraryLoads`), empty permission purpose strings, missing `PrivacyInfo.xcprivacy` manifest, deprecated `UIWebView`, IDFA without App Tracking Transparency, missing export-compliance key |
 
 **Google Play**
 

@@ -116,6 +116,12 @@ STANDARDS_MAP: dict[str, Standards] = {
     "COV-FIREBASE-RULES": _ACCESS,
     "COV-SUPABASE-RLS": _ACCESS,
     "COV-CLOUDFLARE": _ACCESS,
+    # iOS / App Store
+    "IOS-ATS-ARBITRARY": _CLEARTEXT,
+    "IOS-USAGE-DESC-EMPTY": _PRIVACY,
+    "IOS-PRIVACY-MANIFEST-MISSING": _PRIVACY,
+    "IOS-UIWEBVIEW": Standards(cwe=(477,), masvs=("MASVS-PLATFORM",), owasp_mobile="M8"),
+    "IOS-IDFA-NO-ATT": _PRIVACY,
     # Play policy that is genuinely a privacy control
     "PLY-PRIVACY-POLICY": _PRIVACY,
     "PLY-DATA-SAFETY-GAP": _PRIVACY,

@@ -44,6 +44,9 @@ TEXT_SUFFIXES = {
     # Cloud / BaaS security config: Firebase rules, Supabase migrations,
     # Cloudflare wrangler.
     ".rules", ".sql", ".jsonc",
+    # iOS / App Store: Swift/Obj-C, Apple privacy manifest, entitlements,
+    # the Xcode project file.
+    ".swift", ".m", ".mm", ".h", ".xcprivacy", ".entitlements", ".pbxproj", ".podspec",
 }
 
 MAX_FILE_BYTES = 2 * 1024 * 1024
@@ -76,6 +79,9 @@ def detect_kind(root: Path) -> ProjectKind:
         return ProjectKind.FLUTTER
     if _is_react_native(root) and (root / "android").is_dir():
         return ProjectKind.REACT_NATIVE
+    # A native iOS/macOS project: an Xcode project or a CocoaPods file at the root.
+    if any(root.glob("*.xcodeproj")) or any(root.glob("*.xcworkspace")) or (root / "Podfile").exists():
+        return ProjectKind.IOS
     for name in ("settings.gradle", "settings.gradle.kts", "build.gradle", "build.gradle.kts"):
         if (root / name).exists():
             return ProjectKind.GRADLE
@@ -93,7 +99,7 @@ def detect_kind(root: Path) -> ProjectKind:
 def _should_read(path: Path) -> bool:
     if path.suffix.lower() in TEXT_SUFFIXES:
         return True
-    return path.name in {"gradle.properties", "local.properties", "AndroidManifest.xml"}
+    return path.name in {"gradle.properties", "local.properties", "AndroidManifest.xml", "Podfile"}
 
 
 def _has_git_ancestor(root: Path) -> bool:

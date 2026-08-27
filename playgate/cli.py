@@ -10,7 +10,7 @@ from pathlib import Path
 
 from . import __version__
 from .models import Severity
-from .report import to_json, to_markdown, to_sarif, to_text
+from .report import to_json, to_markdown, to_release_checklist, to_sarif, to_text
 from .rules import all_rules
 from .scan import load_baseline, scan
 
@@ -93,6 +93,13 @@ def _build_parser() -> argparse.ArgumentParser:
         help="exit 1 when a finding at or above this severity exists (default: high)",
     )
     scan_p.add_argument("--no-color", action="store_true", help="disable ANSI colour")
+
+    rel_p = sub.add_parser(
+        "release", help="Google Play submission dry-run: every upload gate as PASS/FAIL",
+    )
+    rel_p.add_argument("target", nargs="?", default=".", help="path to scan (default: .)")
+    rel_p.add_argument("--listing", type=Path, default=None, help="path to a playgate.toml/.json")
+    rel_p.add_argument("--no-color", action="store_true", help="disable ANSI colour")
 
     init_p = sub.add_parser("init", help="write a template playgate.toml")
     init_p.add_argument("directory", nargs="?", default=".", help="where to write it")
@@ -184,6 +191,27 @@ def _cmd_scan(args: argparse.Namespace) -> int:
     return 1 if any(f.severity >= threshold for f in report.findings) else 0
 
 
+def _cmd_release(args: argparse.Namespace) -> int:
+    target = Path(args.target).expanduser()
+    if not target.exists():
+        print(f"playgate: no such path: {target}", file=sys.stderr)
+        return 2
+    try:
+        report = scan(target, listing_path=args.listing)
+    except (ValueError, RuntimeError) as exc:
+        print(f"playgate: {exc}", file=sys.stderr)
+        return 2
+    color = sys.stdout.isatty() and not args.no_color
+    if color:
+        _enable_ansi()
+    print(to_release_checklist(report, color=color))
+    # Exit 1 when any gate blocks submission, so it fits a release pipeline.
+    from .report import _play_gates
+
+    blocked = any(status == "FAIL" for _, items in _play_gates(report) for _, status, _ in items)
+    return 1 if blocked else 0
+
+
 def _cmd_init(args: argparse.Namespace) -> int:
     directory = Path(args.directory).expanduser()
     directory.mkdir(parents=True, exist_ok=True)
@@ -237,6 +265,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     handler = {
         "scan": _cmd_scan,
+        "release": _cmd_release,
         "init": _cmd_init,
         "rules": _cmd_rules,
         "standards": _cmd_standards,

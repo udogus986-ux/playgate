@@ -185,6 +185,122 @@ def to_markdown(report: Report) -> str:
     return "\n".join(lines)
 
 
+_PASS, _FAIL, _INFO, _NA = "PASS", "FAIL", "NEEDS-INFO", "N/A"
+_MARK = {_PASS: "✓", _FAIL: "✗", _INFO: "?", _NA: "—"}
+
+
+def _gate(present: set[str], block: set[str], *, needs: frozenset = frozenset()) -> str:
+    if present & block:
+        return _FAIL
+    if present & needs:
+        return _INFO
+    return _PASS
+
+
+def _play_gates(report: Report) -> list[tuple[str, list[tuple[str, str, str]]]]:
+    present = {f.id for f in report.findings}
+    sec_high = {f.id for f in report.findings
+                if f.category is Category.SECURITY and f.severity >= Severity.HIGH}
+    has_listing = "PLY-NO-LISTING" not in present
+    perm = {i for i in present if i.startswith("PLY-PERM-")}
+
+    def listing_gate(block: set[str]) -> str:
+        if not has_listing:
+            return _INFO
+        return _FAIL if present & block else _PASS
+
+    return [
+        ("Build & bundle  (Play Console › Production › App bundle)", [
+            ("Targets Android 16 / API 36", _gate(present, {"PLY-TARGET-API"}, needs=frozenset({"PLY-TARGET-UNKNOWN"})),
+             "raise targetSdk; upload is refused below it"),
+            ("Release build is not debuggable", _gate(present, {"AND-DEBUGGABLE", "BLD-DEBUGGABLE"}),
+             "Play rejects debuggable uploads"),
+            ("64-bit (ARM64) native code", _gate(present, {"UNI-NO-ARM64"}),
+             "required when the app ships native libraries"),
+            ("R8 shrinking/obfuscation on", _gate(present, {"BLD-NO-MINIFY"}),
+             "recommended, not blocking"),
+        ]),
+        ("App content  (Play Console › Policy › App content)", [
+            ("Privacy policy URL", listing_gate({"PLY-PRIVACY-POLICY"}),
+             "App content › Privacy policy"),
+            ("Data Safety matches the manifest", listing_gate({"PLY-DATA-SAFETY-GAP"}),
+             "App content › Data safety"),
+            ("Account deletion route", listing_gate({"PLY-ACCOUNT-DELETION"}),
+             "App content › Data deletion"),
+            ("Advertising ID handled", listing_gate({"PLY-ADID-MISSING", "PLY-ADID-CHILDREN"}),
+             "App content › Advertising ID"),
+            ("Restricted permissions declared", _FAIL if perm else _PASS,
+             "App content › Sensitive app permissions"),
+        ]),
+        ("Store listing  (Play Console › Grow › Store presence)", [
+            ("Title / description within limits",
+             listing_gate({"PLY-TITLE-LENGTH", "PLY-SHORT-DESCRIPTION-LENGTH", "PLY-FULL-DESCRIPTION-LENGTH"}),
+             "Main store listing"),
+            ("No promo/keyword-stuffing text",
+             listing_gate({"PLY-PROMO-TERMS", "PLY-KEYWORD-STUFFING", "PLY-TITLE-EMOJI", "PLY-TITLE-CAPS"}),
+             "Main store listing"),
+        ]),
+        ("Monetisation  (Play Console › Monetise)", [
+            ("Play Billing for digital goods", listing_gate({"PLY-BILLING"}),
+             "Products › In-app products / Subscriptions"),
+        ]),
+        ("Testing & release  (Play Console › Test and release)", [
+            ("Closed test done (new personal accounts)", listing_gate({"PLY-CLOSED-TESTING"}),
+             "Testing › Closed testing — 12 testers × 14 days"),
+        ]),
+        ("Security (pre-release hygiene)", [
+            ("No hard-coded secrets in the build",
+             _FAIL if {i for i in sec_high if i.startswith("SEC-")} else _PASS,
+             "rotate and move server-side"),
+            ("TLS validation intact, no cleartext",
+             _gate(present, {"CODE-TLS-TRUSTALL", "CODE-TLS-VERIFY-TRUE", "AND-CLEARTEXT", "AND-NETSEC-CLEARTEXT"}),
+             "insecure comms"),
+            ("Exported components guarded", _gate(present, {"AND-EXPORTED-OPEN", "AND-EXPORTED-UNSET"}),
+             "any app can reach them otherwise"),
+        ]),
+    ]
+
+
+def to_release_checklist(report: Report, color: bool = False) -> str:
+    """A Play submission dry-run: every real upload gate as PASS / FAIL / NEEDS-INFO."""
+    gates = _play_gates(report)
+    fails = sum(1 for _, items in gates for _, status, _ in items if status == _FAIL)
+    infos = sum(1 for _, items in gates for _, status, _ in items if status == _INFO)
+
+    if fails:
+        verdict, blurb = "NO-GO", f"{fails} blocking item(s) to fix before you submit."
+    elif infos:
+        verdict, blurb = "READY*", f"No blockers, but {infos} item(s) need a playgate.toml to confirm."
+    else:
+        verdict, blurb = "READY", "Every gate playgate can see is clear. Google still reviews what a tool cannot."
+
+    lines = [
+        "",
+        f"playgate release readiness — {report.root}",
+        f"project type: {report.kind}",
+        "",
+        f"VERDICT: {verdict}   {blurb}",
+        "",
+    ]
+    for phase, items in gates:
+        lines.append(f"{BOLD}{phase}{RESET}" if color else phase)
+        lines.append("-" * 60)
+        for name, status, detail in items:
+            row = f"  [{_MARK[status]}] {status:10} {name}"
+            if color and status == _FAIL:
+                row = f"{ANSI[Severity.HIGH]}{row}{RESET}"
+            lines.append(row)
+            if status in (_FAIL, _INFO):
+                lines.append(f"          → {detail}")
+        lines.append("")
+    lines.append(
+        "Legend: PASS clear · FAIL blocks submission · NEEDS-INFO give a playgate.toml. "
+        "A clean checklist is a pre-flight, not Google's decision."
+    )
+    lines.append("")
+    return "\n".join(lines)
+
+
 _SARIF_LEVEL = {
     Severity.CRITICAL: "error",
     Severity.HIGH: "error",

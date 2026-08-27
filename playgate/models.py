@@ -110,6 +110,7 @@ class ProjectKind(enum.Enum):
     GODOT = "godot"
     REACT_NATIVE = "react-native"
     FLUTTER = "flutter"
+    IOS = "ios"
     APK = "apk"
     UNKNOWN = "unknown"
 

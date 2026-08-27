@@ -26,7 +26,7 @@ from pathlib import Path
 from . import __version__
 from .collect import LISTING_FILENAMES, detect_kind
 from .models import Severity
-from .report import to_json, to_markdown
+from .report import to_json, to_markdown, to_release_checklist
 from .rules import all_rules
 from .scan import scan
 
@@ -59,6 +59,24 @@ TOOLS = [
                     "enum": ["json", "markdown"],
                     "description": "json (default) for structured reasoning, markdown for a report.",
                 },
+            },
+            "required": ["path"],
+        },
+    },
+    {
+        "name": "playgate_release_check",
+        "description": (
+            "Google Play submission dry-run for a project directory, .apk or .aab: every real "
+            "upload gate (target API, signing, privacy policy, Data Safety, permissions, billing, "
+            "closed testing, security hygiene) rendered as PASS / FAIL / NEEDS-INFO with a GO/NO-GO "
+            "verdict and the Play Console location for each. Pass a listing_path for the store-side "
+            "gates."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string"},
+                "listing_path": {"type": "string"},
             },
             "required": ["path"],
         },
@@ -123,6 +141,18 @@ def _tool_scan(args: dict) -> str:
     return to_json(report)
 
 
+def _tool_release_check(args: dict) -> str:
+    raw = str(args.get("path") or "").strip()
+    if not raw:
+        raise ValueError("path is required")
+    target = Path(raw).expanduser()
+    if not target.exists():
+        raise ValueError(f"no such path: {target}")
+    listing = args.get("listing_path")
+    report = scan(target, listing_path=Path(listing) if listing else None)
+    return to_release_checklist(report)
+
+
 def _tool_detect(args: dict) -> str:
     raw = str(args.get("path") or "").strip()
     if not raw:
@@ -168,6 +198,7 @@ def _tool_init_listing(args: dict) -> str:
 
 TOOL_IMPL = {
     "playgate_scan": _tool_scan,
+    "playgate_release_check": _tool_release_check,
     "playgate_detect": _tool_detect,
     "playgate_list_rules": _tool_list_rules,
     "playgate_init_listing": _tool_init_listing,
