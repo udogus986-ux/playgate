@@ -293,12 +293,16 @@ class Report:
         return [f for f in self.sorted_findings() if f.category is category]
 
     def rejection_score(self) -> int:
-        """0-100. Sum of policy weights, capped.
+        """0-100. Sum of *Google Play* policy weights, capped.
 
-        This is a heuristic ordering aid, not a probability. It exists so that
-        two runs can be compared, and so the worst item is obvious.
+        This is a heuristic ordering aid, not a probability. iOS/App Store
+        findings (``IOS-*``) are a different store and are excluded, so a
+        cross-platform app's Play score is not inflated by App Store issues.
         """
-        total = sum(f.rejection_weight for f in self.findings if f.category is Category.POLICY)
+        total = sum(
+            f.rejection_weight for f in self.findings
+            if f.category is Category.POLICY and not f.id.startswith("IOS-")
+        )
         return min(100, total)
 
     def rejection_band(self) -> str:

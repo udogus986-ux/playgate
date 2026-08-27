@@ -114,3 +114,13 @@ def test_hardcoded_secret_in_swift_is_found(tmp_path: Path) -> None:
     key = "sk_live_" + "51H8kQpLmNvBxWzYt3RfGh2Jd"
     root = ios_project(tmp_path, xcprivacy=True, swift=f'let k = "{key}"\n')
     assert "SEC-STRIPE-LIVE" in ids(scan(root))
+
+
+def test_ios_findings_do_not_inflate_play_rejection_score(tmp_path: Path) -> None:
+    # A pure iOS project (no Play policy issues) must not carry a Google Play
+    # rejection score just because it has App Store findings.
+    root = ios_project(tmp_path, xcprivacy=False)  # → IOS-PRIVACY-MANIFEST-MISSING etc.
+    report = scan(root)
+    assert any(f.id.startswith("IOS-") for f in report.findings)
+    assert report.rejection_score() == 0
+    assert report.rejection_band() == "NONE"

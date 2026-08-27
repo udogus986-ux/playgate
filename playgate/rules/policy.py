@@ -15,7 +15,7 @@ import re
 from dataclasses import dataclass
 from typing import Iterator
 
-from ..models import Category, Finding, Location, ScanContext, Severity
+from ..models import Category, Finding, Location, ProjectKind, ScanContext, Severity
 from .base import rule
 
 DOC_TARGET_API = "https://support.google.com/googleplay/android-developer/answer/11926878"
@@ -216,6 +216,8 @@ def _all_permissions(ctx: ScanContext) -> set[str]:
 
 @rule("policy.target_api")
 def target_api_level(ctx: ScanContext) -> Iterator[Finding]:
+    if ctx.kind is ProjectKind.IOS:
+        return  # a pure iOS app has no Android target SDK / Play upload
     target = ctx.build.target_sdk
     if target is None:
         yield Finding(
@@ -608,7 +610,7 @@ def closed_testing(ctx: ScanContext) -> Iterator[Finding]:
 
 @rule("policy.listing_missing")
 def listing_missing(ctx: ScanContext) -> Iterator[Finding]:
-    if ctx.listing is not None:
+    if ctx.listing is not None or ctx.kind is ProjectKind.IOS:
         return
     yield Finding(
         id="PLY-NO-LISTING",
