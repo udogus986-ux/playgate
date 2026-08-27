@@ -1,0 +1,18 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.coverage
+
+# never commit key material
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+keystore.properties
+local.properties

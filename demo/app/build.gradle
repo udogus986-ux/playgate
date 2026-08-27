@@ -1,0 +1,27 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'com.demo'
+    compileSdk 34
+    defaultConfig {
+        applicationId "com.demo"
+        minSdk 19
+        targetSdk 33
+        versionCode 7
+        versionName "1.2.0"
+    }
+    signingConfigs {
+        release {
+            storeFile file("release.jks")
+            storePassword "Hunter2Str0ngPass"
+            keyAlias "upload"
+            keyPassword "Hunter2Str0ngPass"
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            debuggable true
+        }
+    }
+}

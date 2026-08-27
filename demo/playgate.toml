@@ -1,0 +1,25 @@
+title = "DEMO APP - BEST FREE TRACKER 2026 🚀"
+short_description = "Track everything, the best free tracker you can download now."
+full_description = """
+Demo app for playgate. Tracker tracker tracker tracker tracker tracker tracker
+tracker tracker tracker tracker tracker tracker tracker tracker tracker helps
+you track your tracking with the best tracker tracking tracker available.
+"""
+
+privacy_policy_url = ""
+
+account_creation = true
+in_app_account_deletion = false
+account_deletion_url = ""
+
+uses_ads = true
+sells_digital_goods = true
+uses_play_billing = false
+
+target_audience_children = false
+content_rating = "Everyone"
+
+data_safety_declared = ["personal_info"]
+
+developer_account_type = "personal"
+first_release = true

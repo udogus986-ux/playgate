@@ -1,0 +1,39 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "playgate"
+version = "0.2.0"
+description = "Pre-flight checks for Android apps: security issues and Google Play rejection risk."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Umut" }]
+keywords = ["android", "security", "google-play", "sast", "unity", "godot", "mcp", "sarif"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Security",
+]
+dependencies = []
+
+[project.optional-dependencies]
+yaml = ["PyYAML>=6.0"]
+dev = ["pytest>=7.0"]
+
+[project.scripts]
+playgate = "playgate.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/udogus986-ux/playgate"
+Issues = "https://github.com/udogus986-ux/playgate/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["playgate"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

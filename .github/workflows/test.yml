@@ -1,0 +1,44 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -e ".[dev]"
+      - run: pytest -q
+      - name: self-scan the demo project
+        run: python -m playgate.cli scan demo --format md -o /tmp/demo-report.md --fail-on never
+
+  # Example of using playgate as a code-scanning step. Runs once, best-effort:
+  # a fork without code scanning enabled will skip the upload rather than fail.
+  code-scanning:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e .
+      - name: scan and emit SARIF
+        run: python -m playgate.cli scan demo --format sarif -o playgate.sarif --fail-on never
+      - name: upload to code scanning
+        uses: github/codeql-action/upload-sarif@v3
+        continue-on-error: true
+        with:
+          sarif_file: playgate.sarif
+          category: playgate

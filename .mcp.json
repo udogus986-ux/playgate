@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "playgate": {
+      "command": "python",
+      "args": ["-m", "playgate.cli", "mcp"],
+      "description": "Audit Android projects and packages for security issues and Google Play rejection risk. Deterministic, offline, no API key."
+    }
+  }
+}

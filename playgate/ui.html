@@ -1,0 +1,552 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>playgate</title>
+<style>
+  :root {
+    --bg: #101014; --panel: #17171c; --panel2: #1d1d24; --border: #2a2a33;
+    --text: #e8e8ec; --dim: #9a9aa5; --accent: #4c8dff; --accent-text: #fff;
+    --mono: ui-monospace, "Cascadia Code", Consolas, Menlo, monospace;
+    --critical: #e5484d; --high: #f76b15; --medium: #ffb224; --low: #3b9eff;
+    --info: #70707c; --ok: #30a46c;
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f5f5f7; --panel: #ffffff; --panel2: #f0f0f3; --border: #e0e0e6;
+      --text: #1b1b22; --dim: #63636e; --info: #8b8b96;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font: 15px/1.55 system-ui, "Segoe UI", Roboto, sans-serif;
+    padding-bottom: 80px;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 0 20px; }
+
+  header {
+    display: flex; align-items: baseline; gap: 12px;
+    padding: 26px 0 6px;
+  }
+  .logo { font-size: 22px; font-weight: 700; letter-spacing: -.02em; }
+  .logo::before { content: "▶ "; color: var(--accent); }
+  .ver { color: var(--dim); font-size: 13px; font-family: var(--mono); }
+  header .spacer { flex: 1; }
+  .tagline { color: var(--dim); font-size: 14px; margin: 0 0 18px; }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px;
+  }
+
+  .targetrow { display: flex; gap: 10px; flex-wrap: wrap; }
+  .targetrow input[type=text] {
+    flex: 1; min-width: 260px;
+    background: var(--panel2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 12px; font-family: var(--mono); font-size: 14px;
+  }
+  .targetrow input[type=text]:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+
+  button {
+    background: var(--panel2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 16px; font: inherit; font-size: 14px; cursor: pointer;
+  }
+  button:hover { border-color: var(--dim); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+  button.primary:hover { filter: brightness(1.1); }
+  button:disabled { opacity: .5; cursor: default; }
+  button.small { padding: 6px 12px; font-size: 13px; }
+
+  .hint { color: var(--dim); font-size: 13px; margin-top: 10px; min-height: 1.2em; }
+  .hint b { color: var(--text); font-weight: 600; }
+
+  /* summary */
+  .summary { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 18px; }
+  .summary .card { flex: 1; min-width: 300px; }
+  .counts { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 7px;
+    border: 1px solid var(--border); border-radius: 99px;
+    padding: 5px 12px; font-size: 13px; font-weight: 600;
+    background: var(--panel2);
+  }
+  .chip .dot { width: 9px; height: 9px; border-radius: 50%; }
+  .chip.zero { opacity: .38; font-weight: 400; }
+  .cardtitle { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); margin: 0 0 10px; }
+  .bandline { display: flex; align-items: baseline; gap: 10px; }
+  .bandname { font-size: 22px; font-weight: 700; }
+  .bandscore { font-family: var(--mono); color: var(--dim); }
+  .bar { height: 8px; border-radius: 99px; background: var(--panel2); border: 1px solid var(--border); margin: 10px 0 8px; overflow: hidden; }
+  .bar > div { height: 100%; border-radius: 99px; transition: width .5s ease; }
+  .blurb { color: var(--dim); font-size: 13px; margin: 0; }
+
+  /* toolbar */
+  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 20px 0 12px; }
+  .tabs { display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .tabs button { border: 0; border-radius: 0; background: var(--panel); }
+  .tabs button.on { background: var(--accent); color: var(--accent-text); font-weight: 600; }
+  select {
+    background: var(--panel2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 10px; font: inherit; font-size: 13px;
+  }
+  .toolbar input[type=search] {
+    background: var(--panel2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 12px; font: inherit; font-size: 13px; width: 180px;
+  }
+  .toolbar .spacer { flex: 1; }
+
+  /* findings */
+  .finding {
+    border: 1px solid var(--border); border-left-width: 4px; border-radius: var(--radius);
+    background: var(--panel); margin-bottom: 10px; overflow: hidden;
+  }
+  .fhead { display: flex; align-items: center; gap: 12px; padding: 12px 16px; cursor: pointer; }
+  .fhead:hover { background: var(--panel2); }
+  .badge {
+    font-size: 11px; font-weight: 700; letter-spacing: .05em; border-radius: 5px;
+    padding: 2px 8px; color: #fff; flex-shrink: 0; min-width: 66px; text-align: center;
+  }
+  .ftitle { font-weight: 600; flex: 1; }
+  .floc { font-family: var(--mono); font-size: 12px; color: var(--dim); flex-shrink: 0; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fbody { display: none; border-top: 1px solid var(--border); padding: 14px 16px; }
+  .finding.open .fbody { display: block; }
+  .frow { display: flex; gap: 10px; margin-bottom: 10px; }
+  .frow:last-child { margin-bottom: 0; }
+  .flabel { flex-shrink: 0; width: 52px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); padding-top: 2px; }
+  .fval { flex: 1; min-width: 0; }
+  .fval.mono { font-family: var(--mono); font-size: 13px; background: var(--panel2); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; overflow-x: auto; white-space: pre; }
+  .fval a { color: var(--accent); word-break: break-all; }
+
+  .section { margin-top: 26px; }
+  .sectionhead { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--dim); margin: 0 0 12px; }
+  .notes { color: var(--dim); font-size: 13px; }
+  .notes li { margin-bottom: 4px; }
+  .empty { text-align: center; color: var(--dim); padding: 60px 20px; }
+  .empty .big { font-size: 40px; margin-bottom: 12px; }
+
+  /* modal */
+  .overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.55);
+    display: none; align-items: center; justify-content: center; z-index: 50;
+  }
+  .overlay.show { display: flex; }
+  .modal {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+    width: min(640px, 92vw); max-height: 82vh; display: flex; flex-direction: column;
+  }
+  .mhead { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+  .mhead .mtitle { font-weight: 700; flex: 1; }
+  .mpath { display: flex; gap: 8px; padding: 12px 16px 0; }
+  .mpath input { flex: 1; background: var(--panel2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-family: var(--mono); font-size: 13px; }
+  .mlist { overflow-y: auto; padding: 10px 16px; flex: 1; }
+  .mitem { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 7px; cursor: pointer; font-size: 14px; }
+  .mitem:hover { background: var(--panel2); }
+  .mitem .ic { width: 20px; text-align: center; flex-shrink: 0; }
+  .mitem.pkg { font-family: var(--mono); font-size: 13px; }
+  .mfoot { display: flex; gap: 10px; padding: 12px 16px; border-top: 1px solid var(--border); align-items: center; }
+  .mfoot .mkind { color: var(--dim); font-size: 13px; flex: 1; }
+  .drives { display: flex; gap: 6px; padding: 8px 16px 0; flex-wrap: wrap; }
+
+  /* rules modal table */
+  .rulestable { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .rulestable td { padding: 6px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .rulestable td:first-child { font-family: var(--mono); white-space: nowrap; color: var(--accent); }
+
+  /* toast */
+  #toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 18px; font-size: 14px; box-shadow: 0 8px 30px rgba(0,0,0,.35);
+    opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 99;
+  }
+  #toast.show { opacity: 1; }
+
+  .spin { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.35); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: -2px; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">playgate</div>
+    <div class="ver" id="ver"></div>
+    <div class="spacer"></div>
+    <button class="small" id="btnRules">Rules</button>
+  </header>
+  <p class="tagline">Pre-flight checks for Android apps — security issues and Google Play rejection risk, before you upload.</p>
+
+  <div class="card">
+    <div class="targetrow">
+      <input type="text" id="target" placeholder="Path to a project folder, .apk or .aab…" spellcheck="false">
+      <button id="btnBrowse">Browse…</button>
+      <button class="primary" id="btnScan">Scan</button>
+    </div>
+    <div class="hint" id="hint">Pick a project folder (Gradle, Unity, Godot) or a compiled package, then press Scan.</div>
+  </div>
+
+  <div id="results"></div>
+</div>
+
+<!-- folder browser -->
+<div class="overlay" id="browseOverlay">
+  <div class="modal">
+    <div class="mhead">
+      <div class="mtitle">Choose a folder or package</div>
+      <button class="small" id="btnHome">Home</button>
+      <button class="small" id="btnBrowseClose">✕</button>
+    </div>
+    <div class="drives" id="drives"></div>
+    <div class="mpath">
+      <button class="small" id="btnUp" title="Up one level">↑</button>
+      <input id="browsePath" spellcheck="false">
+    </div>
+    <div class="mlist" id="browseList"></div>
+    <div class="mfoot">
+      <div class="mkind" id="browseKind"></div>
+      <button id="btnBrowseCancel">Cancel</button>
+      <button class="primary" id="btnUseFolder">Use this folder</button>
+    </div>
+  </div>
+</div>
+
+<!-- rules -->
+<div class="overlay" id="rulesOverlay">
+  <div class="modal">
+    <div class="mhead">
+      <div class="mtitle">Registered rules</div>
+      <button class="small" id="btnRulesClose">✕</button>
+    </div>
+    <div class="mlist"><table class="rulestable" id="rulesTable"></table></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+"use strict";
+
+const SEV_ORDER = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"];
+const SEV_COLOR = {
+  CRITICAL: "var(--critical)", HIGH: "var(--high)", MEDIUM: "var(--medium)",
+  LOW: "var(--low)", INFO: "var(--info)",
+};
+const BAND_COLOR = {
+  CRITICAL: "var(--critical)", HIGH: "var(--high)", MEDIUM: "var(--medium)",
+  LOW: "var(--low)", NONE: "var(--ok)",
+};
+const BAND_BLURB = {
+  CRITICAL: "At least one issue here blocks the upload or risks removal. Fix before submitting.",
+  HIGH: "Likely to be rejected or to require a declaration you have not filed yet.",
+  MEDIUM: "Nothing blocking, but reviewers commonly push back on these.",
+  LOW: "Minor policy hygiene.",
+  NONE: "No policy issues detected from the inputs provided.",
+};
+const CATEGORY_LABEL = { security: "Security", policy: "Google Play policy" };
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => (
+  { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+let report = null;
+let view = { category: "all", minSeverity: "INFO", search: "" };
+
+function toast(msg) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove("show"), 2600);
+}
+
+async function api(path, body) {
+  const opts = body === undefined ? {} : {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  };
+  const res = await fetch(path, opts);
+  const data = await res.json().catch(() => ({ error: "bad response" }));
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  return data;
+}
+
+/* ---------------- scan ---------------- */
+
+async function runScan() {
+  const target = $("target").value.trim();
+  if (!target) { toast("Enter a path first."); $("target").focus(); return; }
+  const btn = $("btnScan");
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span>Scanning…';
+  try {
+    report = await api("/api/scan", { target });
+    view = { category: "all", minSeverity: "INFO", search: "" };
+    renderResults();
+  } catch (err) {
+    toast("Scan failed: " + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Scan";
+  }
+}
+
+function filteredFindings() {
+  const minIdx = SEV_ORDER.indexOf(view.minSeverity);
+  const q = view.search.toLowerCase();
+  return report.findings.filter((f) => {
+    if (view.category !== "all" && f.category !== view.category) return false;
+    if (SEV_ORDER.indexOf(f.severity) > minIdx) return false;
+    if (q && !(f.title + " " + f.id + " " + f.location + " " + f.why + " " + f.fix)
+        .toLowerCase().includes(q)) return false;
+    return true;
+  });
+}
+
+function renderResults() {
+  const box = $("results");
+  if (!report) { box.innerHTML = ""; return; }
+
+  const counts = report.counts;
+  const band = report.rejection_band;
+  const chips = SEV_ORDER.map((s) => `
+    <span class="chip ${counts[s] ? "" : "zero"}">
+      <span class="dot" style="background:${SEV_COLOR[s]}"></span>${s} ${counts[s]}
+    </span>`).join("");
+
+  const total = report.findings.length;
+  const listingMissing = report.findings.some((f) => f.id === "PLY-NO-LISTING");
+
+  let html = `
+    <div class="summary">
+      <div class="card">
+        <p class="cardtitle">Findings — ${total} total</p>
+        <div class="counts">${chips}</div>
+        <div class="hint" style="margin-top:12px">
+          <b>${esc(report.kind)}</b> project · <span style="font-family:var(--mono)">${esc(report.root)}</span>
+        </div>
+      </div>
+      <div class="card">
+        <p class="cardtitle">Play rejection risk</p>
+        <div class="bandline">
+          <span class="bandname" style="color:${BAND_COLOR[band]}">${band}</span>
+          <span class="bandscore">${report.rejection_score}/100</span>
+        </div>
+        <div class="bar"><div style="width:${Math.max(report.rejection_score, 2)}%;background:${BAND_COLOR[band]}"></div></div>
+        <p class="blurb">${esc(BAND_BLURB[band] || "")}</p>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <div class="tabs">
+        <button data-cat="all" class="${view.category === "all" ? "on" : ""}">All</button>
+        <button data-cat="security" class="${view.category === "security" ? "on" : ""}">Security</button>
+        <button data-cat="policy" class="${view.category === "policy" ? "on" : ""}">Policy</button>
+      </div>
+      <select id="sevFilter" title="Minimum severity">
+        ${SEV_ORDER.map((s) => `<option value="${s}" ${view.minSeverity === s ? "selected" : ""}>${s === "INFO" ? "All severities" : s + " and above"}</option>`).join("")}
+      </select>
+      <input type="search" id="searchBox" placeholder="Filter…" value="${esc(view.search)}">
+      <div class="spacer"></div>
+      ${listingMissing ? '<button class="small" id="btnInit">Create playgate.toml</button>' : ""}
+      <button class="small" id="btnDlJson">JSON</button>
+      <button class="small" id="btnDlMd">report.md</button>
+    </div>
+
+    <div id="findingList"></div>`;
+
+  if (report.notes && report.notes.length) {
+    html += `<div class="section"><p class="sectionhead">Notes</p>
+      <ul class="notes">${report.notes.map((n) => `<li>${esc(n)}</li>`).join("")}</ul></div>`;
+  }
+  if (report.inputs && report.inputs.length) {
+    html += `<div class="section"><p class="sectionhead">Inputs read</p>
+      <ul class="notes">${report.inputs.map((n) => `<li style="font-family:var(--mono)">${esc(n)}</li>`).join("")}</ul></div>`;
+  }
+  box.innerHTML = html;
+
+  box.querySelectorAll("[data-cat]").forEach((b) =>
+    b.addEventListener("click", () => { view.category = b.dataset.cat; renderResults(); }));
+  $("sevFilter").addEventListener("change", (e) => { view.minSeverity = e.target.value; renderFindings(); });
+  $("searchBox").addEventListener("input", (e) => { view.search = e.target.value; renderFindings(); });
+  $("btnDlJson").addEventListener("click", () => download("playgate-report.json",
+    JSON.stringify({ ...report, markdown: undefined }, null, 2), "application/json"));
+  $("btnDlMd").addEventListener("click", () => download("playgate-report.md", report.markdown, "text/markdown"));
+  const init = $("btnInit");
+  if (init) init.addEventListener("click", createListing);
+
+  renderFindings();
+}
+
+function renderFindings() {
+  const list = $("findingList");
+  const items = filteredFindings();
+  if (!items.length) {
+    list.innerHTML = `<div class="empty"><div class="big">${report.findings.length ? "🔎" : "✅"}</div>
+      ${report.findings.length ? "No findings match the current filter." : "No findings. Remember: a clean report is not an approval — the rule set is fixed and finite."}</div>`;
+    return;
+  }
+  list.innerHTML = items.map((f, i) => `
+    <div class="finding" style="border-left-color:${SEV_COLOR[f.severity]}" data-i="${i}">
+      <div class="fhead">
+        <span class="badge" style="background:${SEV_COLOR[f.severity]}${f.severity === "MEDIUM" ? ";color:#3b2a00" : ""}">${f.severity}</span>
+        <span class="ftitle">${esc(f.title)}</span>
+        <span class="floc" title="${esc(f.location)}">${esc(f.location)}</span>
+      </div>
+      <div class="fbody">
+        ${f.evidence ? `<div class="frow"><div class="flabel">Found</div><div class="fval mono">${esc(f.evidence)}</div></div>` : ""}
+        <div class="frow"><div class="flabel">Why</div><div class="fval">${esc(f.why)}</div></div>
+        <div class="frow"><div class="flabel">Fix</div><div class="fval">${esc(f.fix)}</div></div>
+        ${f.refs && f.refs.length ? `<div class="frow"><div class="flabel">Ref</div><div class="fval"><a href="${esc(f.refs[0])}" target="_blank" rel="noopener">${esc(f.refs[0])}</a></div></div>` : ""}
+        <div class="frow"><div class="flabel">ID</div><div class="fval" style="font-family:var(--mono);font-size:12px;color:var(--dim)">${esc(f.id)} · ${esc(CATEGORY_LABEL[f.category] || f.category)}</div></div>
+      </div>
+    </div>`).join("");
+  list.querySelectorAll(".fhead").forEach((h) =>
+    h.addEventListener("click", () => h.parentElement.classList.toggle("open")));
+}
+
+function download(name, text, type) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], { type }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+async function createListing() {
+  const target = $("target").value.trim();
+  try {
+    const res = await api("/api/init", { path: target });
+    toast("Wrote " + res.path + " — fill it in, then re-scan.");
+  } catch (err) {
+    toast(err.message);
+  }
+}
+
+/* ---------------- folder browser ---------------- */
+
+let browseCurrent = "";
+
+async function openBrowser(startPath) {
+  $("browseOverlay").classList.add("show");
+  await navigateTo(startPath || $("target").value.trim() || meta.home);
+}
+
+async function navigateTo(path) {
+  try {
+    const data = await api("/api/browse", { path });
+    browseCurrent = data.path;
+    $("browsePath").value = data.path;
+    $("btnUp").disabled = !data.parent;
+    $("btnUp").dataset.parent = data.parent || "";
+    const kind = data.kind !== "unknown"
+      ? `Looks like a <b>${esc(data.kind)}</b> project` : "";
+    const listing = data.has_listing ? " · playgate.toml found" : "";
+    $("browseKind").innerHTML = kind + (kind ? listing : "");
+    $("browseList").innerHTML =
+      data.dirs.map((d) => `<div class="mitem" data-dir="${esc(d)}"><span class="ic">📁</span>${esc(d)}</div>`).join("") +
+      data.packages.map((p) => `<div class="mitem pkg" data-pkg="${esc(p)}"><span class="ic">📦</span>${esc(p)}</div>`).join("") ||
+      '<div class="empty" style="padding:30px">Empty folder</div>';
+    $("browseList").querySelectorAll("[data-dir]").forEach((el) =>
+      el.addEventListener("click", () => navigateTo(joinPath(browseCurrent, el.dataset.dir))));
+    $("browseList").querySelectorAll("[data-pkg]").forEach((el) =>
+      el.addEventListener("click", () => {
+        $("target").value = joinPath(browseCurrent, el.dataset.pkg);
+        closeBrowser();
+        updateHint();
+      }));
+  } catch (err) {
+    toast(err.message);
+  }
+}
+
+function joinPath(base, name) {
+  const sep = meta.sep || "/";
+  return base.endsWith(sep) ? base + name : base + sep + name;
+}
+
+function closeBrowser() { $("browseOverlay").classList.remove("show"); }
+
+async function updateHint() {
+  const target = $("target").value.trim();
+  if (!target) return;
+  try {
+    const data = await api("/api/browse", { path: target });
+    const bits = [];
+    if (data.kind !== "unknown") bits.push(`detected: <b>${esc(data.kind)}</b> project`);
+    bits.push(data.has_listing
+      ? "playgate.toml found — listing checks will run"
+      : "no playgate.toml — store-side checks will be skipped");
+    $("hint").innerHTML = bits.join(" · ");
+  } catch { /* target may be an .apk path; leave the hint alone */ }
+}
+
+/* ---------------- rules ---------------- */
+
+async function openRules() {
+  $("rulesOverlay").classList.add("show");
+  try {
+    const rules = await api("/api/rules");
+    $("rulesTable").innerHTML = rules.map((r) =>
+      `<tr><td>${esc(r.name)}</td><td>${esc(r.doc)}</td></tr>`).join("");
+  } catch (err) {
+    toast(err.message);
+  }
+}
+
+/* ---------------- boot ---------------- */
+
+let meta = { home: "", sep: "/" };
+
+async function boot() {
+  try {
+    meta = await api("/api/meta");
+    $("ver").textContent = "v" + meta.version;
+    $("target").value = meta.cwd || "";
+    const drives = $("drives");
+    drives.innerHTML = (meta.drives || []).map((d) =>
+      `<button class="small" data-drive="${esc(d)}">${esc(d)}</button>`).join("");
+    drives.querySelectorAll("[data-drive]").forEach((b) =>
+      b.addEventListener("click", () => navigateTo(b.dataset.drive)));
+    if ($("target").value) updateHint();
+  } catch (err) {
+    toast("Cannot reach the playgate server: " + err.message);
+  }
+}
+
+$("btnScan").addEventListener("click", runScan);
+$("target").addEventListener("keydown", (e) => { if (e.key === "Enter") runScan(); });
+$("target").addEventListener("change", updateHint);
+$("btnBrowse").addEventListener("click", () => openBrowser());
+$("btnBrowseClose").addEventListener("click", closeBrowser);
+$("btnBrowseCancel").addEventListener("click", closeBrowser);
+$("btnUseFolder").addEventListener("click", () => {
+  $("target").value = browseCurrent;
+  closeBrowser();
+  updateHint();
+});
+$("btnUp").addEventListener("click", (e) => {
+  const p = e.currentTarget.dataset.parent;
+  if (p) navigateTo(p);
+});
+$("btnHome").addEventListener("click", () => navigateTo(meta.home));
+$("browsePath").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") navigateTo(e.target.value.trim());
+});
+$("btnRules").addEventListener("click", openRules);
+$("btnRulesClose").addEventListener("click", () => $("rulesOverlay").classList.remove("show"));
+document.querySelectorAll(".overlay").forEach((ov) =>
+  ov.addEventListener("click", (e) => { if (e.target === ov) ov.classList.remove("show"); }));
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") document.querySelectorAll(".overlay.show").forEach((o) => o.classList.remove("show"));
+});
+
+boot();
+</script>
+</body>
+</html>
