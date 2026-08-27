@@ -383,6 +383,19 @@ function renderResults() {
   renderFindings();
 }
 
+function stdRow(std) {
+  if (!std) return "";
+  const parts = [];
+  if (std.owasp_mobile_top10_2024) parts.push("OWASP " + std.owasp_mobile_top10_2024);
+  (std.masvs || []).forEach((m) => parts.push(m));
+  (std.cwe || []).forEach((c) => parts.push(c));
+  if (!parts.length) return "";
+  const chips = parts.map((p) =>
+    `<span style="display:inline-block;font-size:11px;font-family:var(--mono);background:var(--panel2);border:1px solid var(--border);border-radius:5px;padding:1px 7px;margin:0 4px 4px 0">${esc(p)}</span>`
+  ).join("");
+  return `<div class="frow"><div class="flabel">Std</div><div class="fval">${chips}</div></div>`;
+}
+
 function renderFindings() {
   const list = $("findingList");
   const items = filteredFindings();
@@ -402,6 +415,7 @@ function renderFindings() {
         ${f.evidence ? `<div class="frow"><div class="flabel">Found</div><div class="fval mono">${esc(f.evidence)}</div></div>` : ""}
         <div class="frow"><div class="flabel">Why</div><div class="fval">${esc(f.why)}</div></div>
         <div class="frow"><div class="flabel">Fix</div><div class="fval">${esc(f.fix)}</div></div>
+        ${stdRow(f.standards)}
         ${f.refs && f.refs.length ? `<div class="frow"><div class="flabel">Ref</div><div class="fval"><a href="${esc(f.refs[0])}" target="_blank" rel="noopener">${esc(f.refs[0])}</a></div></div>` : ""}
         <div class="frow"><div class="flabel">ID</div><div class="fval" style="font-family:var(--mono);font-size:12px;color:var(--dim)">${esc(f.id)} · ${esc(CATEGORY_LABEL[f.category] || f.category)}</div></div>
       </div>

@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 
 from . import __version__
 from .models import Category, Finding, Report, Severity
+from .standards import SCOPE, standards_for
 
 ANSI = {
     Severity.CRITICAL: "\033[1;97;41m",
@@ -43,6 +44,10 @@ def _fmt_findings_text(findings: list[Finding], color: bool) -> list[str]:
             lines.append(f"      found : {f.evidence}")
         lines.append(f"      why   : {f.why}")
         lines.append(f"      fix   : {f.fix}")
+        std = standards_for(f.id)
+        if std:
+            std_line = f"      std   : {' · '.join(std.labels())}"
+            lines.append(f"{DIM}{std_line}{RESET}" if color else std_line)
         if f.refs:
             ref_line = f"      ref   : {f.refs[0]}"
             lines.append(f"{DIM}{ref_line}{RESET}" if color else ref_line)
@@ -87,6 +92,12 @@ def to_text(report: Report, color: bool = True) -> str:
     for note in report.notes:
         lines.append(f"note: {note}")
     lines.append("")
+    scope = (
+        "standards: findings map to OWASP MASVS · MASTG · Mobile Top 10 (2024) · CWE. "
+        "Not a certified / DAST / SCA scan; a clean report is 'not tested', not 'secure'."
+    )
+    lines.append(f"{DIM}{scope}{RESET}" if color else scope)
+    lines.append("")
     return "\n".join(lines)
 
 
@@ -100,6 +111,9 @@ def _md_findings(findings: list[Finding]) -> list[str]:
             lines.append(f"- **Found:** `{f.evidence}`")
         lines.append(f"- **Why it matters:** {f.why}")
         lines.append(f"- **Fix:** {f.fix}")
+        std = standards_for(f.id)
+        if std:
+            lines.append("- **Standards:** " + " · ".join(std.labels()))
         if f.refs:
             lines.append("- **Reference:** " + ", ".join(f"<{r}>" for r in f.refs))
         lines.append("")
@@ -158,10 +172,16 @@ def to_markdown(report: Report) -> str:
     lines += [
         "---",
         "",
-        "Checks run against a fixed rule set. Absence of a finding means the rule did not "
-        "match, not that the app is secure or that Play will approve it.",
+        "## Standards & scope",
+        "",
+        "Findings map onto " + ", ".join(SCOPE["maps_to"]) + ". "
+        f"Output format: {SCOPE['output_format']}.",
+        "",
+        "What this report is **not**:",
         "",
     ]
+    lines += [f"- {item}" for item in SCOPE["not"]]
+    lines.append("")
     return "\n".join(lines)
 
 
@@ -183,16 +203,26 @@ def to_sarif(report: Report) -> str:
         rules_by_id.setdefault(f.id, f)
     rules = []
     for fid, f in sorted(rules_by_id.items()):
+        std = standards_for(fid)
+        props: dict = {
+            "category": f.category.value,
+            "security-severity": _security_severity(f.severity),
+            "tags": (std.sarif_tags() if std else ["security"]),
+        }
+        if std:
+            if std.cwe:
+                props["cwe"] = [f"CWE-{n}" for n in std.cwe]
+            if std.masvs:
+                props["masvs"] = list(std.masvs)
+            if std.owasp_mobile:
+                props["owaspMobileTop10"] = std.owasp_mobile
         rule = {
             "id": fid,
             "name": f.id,
             "shortDescription": {"text": f.title},
             "fullDescription": {"text": f.why},
             "defaultConfiguration": {"level": _SARIF_LEVEL[f.severity]},
-            "properties": {
-                "category": f.category.value,
-                "security-severity": _security_severity(f.severity),
-            },
+            "properties": props,
         }
         if f.refs:
             rule["helpUri"] = f.refs[0]
@@ -252,6 +282,14 @@ def _security_severity(severity: Severity) -> str:
     }[severity]
 
 
+def _finding_json(f: Finding) -> dict:
+    data = f.to_dict()
+    std = standards_for(f.id)
+    if std is not None:
+        data["standards"] = std.to_dict()
+    return data
+
+
 def to_json(report: Report) -> str:
     payload = {
         "root": report.root,
@@ -260,8 +298,9 @@ def to_json(report: Report) -> str:
         "counts": report.counts(),
         "rejection_score": report.rejection_score(),
         "rejection_band": report.rejection_band(),
+        "standards": SCOPE,
         "inputs": report.inputs,
         "notes": report.notes,
-        "findings": [f.to_dict() for f in report.sorted_findings()],
+        "findings": [_finding_json(f) for f in report.sorted_findings()],
     }
     return json.dumps(payload, indent=2, ensure_ascii=False)

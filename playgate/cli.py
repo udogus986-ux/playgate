@@ -99,6 +99,7 @@ def _build_parser() -> argparse.ArgumentParser:
     init_p.add_argument("--force", action="store_true", help="overwrite an existing file")
 
     sub.add_parser("rules", help="list every registered rule")
+    sub.add_parser("standards", help="show how findings map to CWE / MASVS / OWASP Mobile Top 10")
 
     ui_p = sub.add_parser("ui", help="open the local web interface in a browser")
     ui_p.add_argument("--port", type=int, default=8765, help="port to listen on (default: 8765)")
@@ -202,6 +203,22 @@ def _cmd_rules(_: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_standards(_: argparse.Namespace) -> int:
+    from .standards import SCOPE, STANDARDS_MAP, standards_for
+
+    print("Finding → security standard mapping\n")
+    for fid in sorted(STANDARDS_MAP):
+        std = standards_for(fid)
+        print(f"  {fid:26} {' · '.join(std.labels()) if std else ''}")
+    print("\n  SEC-*<provider>            OWASP M1 · MASVS-STORAGE · CWE-798  (default)")
+    print("\nMaps to: " + ", ".join(SCOPE["maps_to"]))
+    print("Output:  " + SCOPE["output_format"])
+    print("\nNot:")
+    for item in SCOPE["not"]:
+        print(f"  - {item}")
+    return 0
+
+
 def _cmd_ui(args: argparse.Namespace) -> int:
     from .webui import serve  # imported lazily; scan/init/rules never need it
 
@@ -222,6 +239,7 @@ def main(argv: list[str] | None = None) -> int:
         "scan": _cmd_scan,
         "init": _cmd_init,
         "rules": _cmd_rules,
+        "standards": _cmd_standards,
         "ui": _cmd_ui,
         "mcp": _cmd_mcp,
     }[args.command]

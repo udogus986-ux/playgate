@@ -96,12 +96,25 @@ def _should_read(path: Path) -> bool:
     return path.name in {"gradle.properties", "local.properties", "AndroidManifest.xml"}
 
 
+def _has_git_ancestor(root: Path) -> bool:
+    """Cheap stat-only check for a ``.git`` at ``root`` or any ancestor, so we
+    never spawn git (slow on Windows) for a directory that isn't in a repo.
+    """
+    p = root
+    while True:
+        if (p / ".git").exists():
+            return True
+        if p.parent == p:
+            return False
+        p = p.parent
+
+
 def collect_git_info(root: Path) -> GitInfo:
     """Ask git what it tracks, so rules can tell a committed secret from a
     gitignored file that only lives on disk. Best-effort: git being absent, or
     the tree not being a repo, simply leaves ``available`` False.
     """
-    if not root.is_dir():
+    if not root.is_dir() or not _has_git_ancestor(root):
         return GitInfo()
 
     def _git(*args: str, timeout: int) -> str | None:

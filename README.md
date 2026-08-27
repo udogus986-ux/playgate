@@ -216,6 +216,22 @@ config, use the **`playgate-cloud-auditor`** agent, which drives your own
 authenticated `firebase` / `supabase` / `wrangler` CLIs (no key ever leaves your
 machine).
 
+## Standards & scope
+
+playgate does not *implement* a security standard — it is a static pre-flight linter — but every security finding is **labelled** with the weakness class it maps to, and the labels ride along in the report (text, Markdown, JSON) and in SARIF (`external/cwe/cwe-NNN` tags, so GitHub code scanning shows a CWE badge). Run `playgate standards` to see the full mapping.
+
+- **OWASP MASVS v2** (Mobile App Security Verification Standard) and **MASTG** static test cases
+- **OWASP Mobile Top 10 (2024)** — e.g. M1 Improper Credential Usage, M5 Insecure Communication, M8 Security Misconfiguration, M10 Insufficient Cryptography
+- **CWE** — e.g. CWE-798 (hard-coded credentials), CWE-295 (improper certificate validation), CWE-327 (broken crypto), CWE-926 (improper component export)
+- **Output:** SARIF 2.1.0, with a CVSS-style `security-severity` per finding
+
+What it deliberately is **not** — stated in every report so a clean run is never mistaken for a pass:
+
+- **Not a certified/accredited assessment.** It does not claim MASVS L1/L2 verification.
+- **Not DAST.** It does not run the app, so no runtime behaviour is covered.
+- **Not SCA/CVE.** It does not scan dependencies for known CVEs.
+- **A fixed, finite rule set.** Absence of a finding is *not* evidence of security — the equivalent of MASVS "not tested", not "pass".
+
 ## Limits
 
 - It reads code and configuration. It does not run your app, so nothing here covers runtime behaviour.
