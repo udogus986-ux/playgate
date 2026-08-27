@@ -33,6 +33,10 @@ WIRE_32BIT = 5
 
 ANDROID_NS = "http://schemas.android.com/apk/res/android"
 
+# A real manifest nests a handful of levels deep. A crafted bundle can nest
+# thousands to blow the Python stack, so cap it well above any legitimate depth.
+MAX_DEPTH = 200
+
 
 class ProtoError(ValueError):
     """Raised when the bytes are not a decodable protobuf manifest."""
@@ -164,6 +168,8 @@ def _attr_value(af: dict) -> str:
 
 
 def _decode_element(blob: bytes, namespaces: dict[str, str], out: list[str], depth: int) -> None:
+    if depth > MAX_DEPTH:
+        raise ProtoError(f"element nesting exceeds {MAX_DEPTH}")
     f = _parse_fields(blob)
 
     local_ns: dict[str, str] = {}
@@ -222,7 +228,7 @@ def decode(data: bytes) -> str:
     out: list[str] = []
     try:
         _decode_node(data, {}, out, 0)
-    except (IndexError, struct.error) as exc:
+    except (IndexError, struct.error, RecursionError) as exc:
         raise ProtoError(f"malformed protobuf: {exc}") from exc
     if not out or not out[0].lstrip().startswith("<manifest"):
         raise ProtoError("no <manifest> element decoded")

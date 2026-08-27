@@ -65,9 +65,15 @@ class StringPool:
         base = offset + strings_start
         if base > len(data):
             raise AXMLError("string pool data starts past end of file")
+        # Never trust the declared count: a crafted pool can claim billions of
+        # entries to force a 4e9-iteration loop / OOM. Bound it by the bytes
+        # actually available for the offset table (each offset is 4 bytes).
+        max_count = max(0, (base - offsets_at) // 4)
+        if count > max_count:
+            count = max_count
         for i in range(count):
-            (rel,) = struct.unpack_from("<I", data, offsets_at + 4 * i)
             try:
+                (rel,) = struct.unpack_from("<I", data, offsets_at + 4 * i)
                 self._strings.append(self._read(data, base + rel))
             except (struct.error, IndexError, UnicodeDecodeError):
                 self._strings.append("")
@@ -141,7 +147,13 @@ def decode(data: bytes) -> str:
     """
     if not looks_like_axml(data):
         raise AXMLError("not an AXML document")
+    try:
+        return _decode(data)
+    except (struct.error, IndexError, RecursionError, MemoryError) as exc:
+        raise AXMLError(f"malformed AXML: {exc}") from exc
 
+
+def _decode(data: bytes) -> str:
     _type, header_size, _size = struct.unpack_from("<HHI", data, 0)
     offset = header_size
     pool: StringPool | None = None
