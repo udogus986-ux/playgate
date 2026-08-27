@@ -70,6 +70,20 @@ write the `playgate.toml` template for you when one is missing.
 playgate ui --port 9000 --no-browser   # options, if you need them
 ```
 
+### Standalone Windows app (`playgate.exe`)
+
+For a no-terminal, no-Python experience you can build a single-file executable.
+Double-clicked, it opens the web interface in the browser; run with arguments it
+is the full CLI (`playgate.exe scan .`, `playgate.exe mcp`, …).
+
+```bash
+pip install pyinstaller
+./packaging/build.ps1          # → dist/playgate.exe  (~8 MB, self-contained)
+```
+
+The build bundles `ui.html`, so the one file is all you need to ship. Nothing
+about it phones home — it is the same offline scanner behind a window.
+
 Exit code is `1` when a finding at or above `--fail-on` (default `high`) exists, so it drops straight into CI:
 
 ```yaml

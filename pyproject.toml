@@ -24,6 +24,7 @@ dependencies = []
 [project.optional-dependencies]
 yaml = ["PyYAML>=6.0"]
 dev = ["pytest>=7.0"]
+build = ["pyinstaller>=6.0"]
 
 [project.scripts]
 playgate = "playgate.cli:main"

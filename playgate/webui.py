@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import threading
 import webbrowser
 from http import HTTPStatus
@@ -28,6 +29,13 @@ _LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1", "[::1]"}
 
 
 def _ui_html() -> bytes:
+    # When frozen by PyInstaller, bundled data lives under sys._MEIPASS rather
+    # than next to this module.
+    base = getattr(sys, "_MEIPASS", None)
+    if base:
+        candidate = Path(base) / "playgate" / "ui.html"
+        if candidate.exists():
+            return candidate.read_bytes()
     return (Path(__file__).parent / "ui.html").read_bytes()
 
 

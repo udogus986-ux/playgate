@@ -93,6 +93,17 @@ def test_serve_processes_a_stream(tmp_path: Path) -> None:
     assert responses[1]["id"] == 2
 
 
+def test_serve_strips_a_leading_bom() -> None:
+    # Some hosts (PowerShell piping) prepend a UTF-8 BOM; the first message
+    # must still parse.
+    line = "﻿" + json.dumps({"jsonrpc": "2.0", "id": 1, "method": "ping"})
+    stdout = io.StringIO()
+    serve(stdin=io.StringIO(line + "\n"), stdout=stdout)
+    responses = [json.loads(x) for x in stdout.getvalue().splitlines() if x.strip()]
+    assert responses[0]["id"] == 1
+    assert "error" not in responses[0]
+
+
 def test_serve_survives_a_garbage_line() -> None:
     stdin = io.StringIO("not json\n" + json.dumps({"jsonrpc": "2.0", "id": 9, "method": "ping"}) + "\n")
     stdout = io.StringIO()

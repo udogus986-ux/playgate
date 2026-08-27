@@ -263,7 +263,9 @@ def serve(stdin=None, stdout=None) -> int:
         stdin = sys.stdin
     _log(f"v{__version__} ready on stdio")
     for line in stdin:
-        line = line.strip()
+        # Strip a UTF-8 BOM some hosts prepend (e.g. PowerShell piping) before
+        # whitespace, so the first message still parses as JSON.
+        line = line.lstrip("﻿").strip()
         if not line:
             continue
         try:

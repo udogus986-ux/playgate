@@ -112,6 +112,18 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _use_utf8_streams() -> None:
+    # Reports can carry arbitrary Unicode (emoji in a listing title, em-dashes,
+    # non-ASCII paths). A Windows console defaults to cp1252 and raises on those,
+    # which is fatal for the packaged .exe. Encode output as UTF-8, replacing
+    # anything the terminal genuinely cannot render rather than crashing.
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):  # pragma: no cover - non-reconfigurable stream
+            pass
+
+
 def _enable_ansi() -> None:
     if os.name == "nt":  # pragma: no cover - Windows console quirk
         os.system("")  # a no-op shell call flips the console into VT mode
@@ -203,6 +215,7 @@ def _cmd_mcp(_: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    _use_utf8_streams()
     parser = _build_parser()
     args = parser.parse_args(argv)
     handler = {
