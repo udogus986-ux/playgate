@@ -129,7 +129,7 @@ KEYSTORE_CREDENTIAL = re.compile(
 PLACEHOLDER_HINTS = (
     "your", "example", "changeme", "placeholder", "xxxx", "todo", "dummy",
     "sample", "test", "fake", "insert", "replace", "<", "${", "abcdef",
-    "0000", "1234", "null", "none",
+    "0000", "1234", "null", "none", "random", "demo", "mock",
 )
 
 KEYSTORE_SUFFIXES = {".jks", ".keystore", ".p12", ".pfx", ".pem", ".key"}
@@ -243,6 +243,79 @@ def generic_secrets(ctx: ScanContext) -> Iterator[Finding]:
             )
 
 
+DOC_SIGNING = "https://developer.android.com/studio/publish/app-signing"
+
+# Right-hand sides that are lookups, not literals: an env read, a property
+# read, a variable, an interpolation. Never a hard-coded secret.
+_INDIRECTION = re.compile(
+    r"""(?ix)^\s*(?:
+        file\s*\( | System\. | project\. | providers\. | rootProject\. |
+        \$ | \$\{ |
+        \w+\s*\.\s*getProperty\b | getProperty\b | \w+\s*\.\s*get\b |
+        System\.getenv | getenv\b | env\b
+    )"""
+)
+
+
+def _signing_finding(name: str, value: str, status: str, f, line: int) -> Finding:
+    is_pointer = name in {"storeFile", "keyAlias"}
+    # A build script is committed by convention, so a literal secret in one is
+    # exposed even when git can't confirm it; a .properties/.cfg file is usually
+    # gitignored, so hedge lower when git is unavailable.
+    is_build_script = f.path.suffix.lower() in {".gradle", ".kts"}
+    evidence = f"{name} = {_redact(value)}"
+    loc = Location(f.relpath, line)
+
+    if status == "committed":
+        if is_pointer:
+            sev, title = Severity.LOW, f"Signing config '{name}' is committed in the build file"
+            why = (
+                "Not a secret by itself, but it points at the keystore and confirms the alias — "
+                "half of what an attacker needs."
+            )
+        else:
+            sev, title = Severity.HIGH, f"Keystore credential '{name}' is committed to git"
+            why = (
+                "This password is tracked in git. Whoever pulls it can sign builds Android accepts "
+                "as updates to your app, and rotating a key cannot undo it."
+            )
+        fix = (
+            "Remove the value from the tracked file, move it to a gitignored keystore.properties "
+            "or an environment variable, and treat the keystore as burned — enroll in Play App "
+            "Signing with a fresh upload key."
+        )
+    elif status == "uncommitted":
+        sev = Severity.INFO
+        title = f"Signing value '{name}' is on disk but not committed"
+        why = (
+            "The value is real, but this file is gitignored and git has no record of it ever being "
+            "committed. Keeping signing credentials in a local, uncommitted file is the "
+            "recommended setup — nothing is exposed."
+        )
+        fix = "No action needed. Ensure CI injects these from its secret store rather than a file."
+    else:  # unknown — git not available
+        if is_pointer:
+            sev = Severity.LOW
+        elif is_build_script:
+            sev = Severity.HIGH  # a literal secret in a normally-committed build file
+        else:
+            sev = Severity.MEDIUM
+        title = f"Signing credential '{name}' is hard-coded"
+        why = (
+            "A real signing value written as a literal. playgate could not consult git to confirm "
+            "whether the file is committed. In a build script this is almost certainly tracked and "
+            "exposed; in a gitignored properties file it may be the correct local-only setup."
+        )
+        fix = (
+            f"Confirm with `git ls-files {f.relpath}` and `git log --all -- {f.relpath}`. If "
+            "tracked: remove, rotate, and re-enroll in Play App Signing. Otherwise no action."
+        )
+    return Finding(
+        id="SEC-SIGNING", title=title, severity=sev, category=Category.SECURITY,
+        why=why, fix=fix, location=loc, evidence=evidence, refs=(DOC_SIGNING,),
+    )
+
+
 @rule("secrets.signing")
 def signing_credentials(ctx: ScanContext) -> Iterator[Finding]:
     for f in ctx.files:
@@ -251,44 +324,23 @@ def signing_credentials(ctx: ScanContext) -> Iterator[Finding]:
             "keystore.properties", "export_presets.cfg",
         }:
             continue
+        # In a .properties file an unquoted right-hand side IS the literal value.
+        # In a build script (.gradle/.kts/.cfg) an unquoted RHS is an expression
+        # — a getProperty()/getenv()/variable read — never a hard-coded secret.
+        properties_file = f.path.suffix.lower() == ".properties"
+        status = ctx.git.status(f.relpath)
         for match in KEYSTORE_CREDENTIAL.finditer(f.text):
             name = match.group(1)
-            value = match.group(2) or match.group(3) or ""
-            if not value or _looks_like_placeholder(value):
-                continue
-            # `storeFile file("...")` and property indirection are not secrets.
-            if value.startswith(("file(", "System.", "project.", "$")):
-                continue
-            if name in {"storeFile", "keyAlias"}:
-                severity = Severity.LOW
-                title = f"Signing config '{name}' is hard-coded in the build file"
-                why = (
-                    "Not a secret by itself, but it points at the keystore and confirms the "
-                    "alias, which is half of what an attacker needs. It also means the build "
-                    "only works on machines where that exact path exists."
-                )
+            quoted, unquoted = match.group(2), match.group(3)
+            if quoted is not None:
+                value = quoted
+            elif unquoted is not None and properties_file:
+                value = unquoted
             else:
-                severity = Severity.HIGH
-                title = f"Keystore credential '{name}' is committed"
-                why = (
-                    "Whoever holds your keystore and its passwords can sign builds that Android "
-                    "accepts as updates to your app. This cannot be undone by rotating a key."
-                )
-            yield Finding(
-                id="SEC-SIGNING",
-                title=title,
-                severity=severity,
-                category=Category.SECURITY,
-                why=why,
-                fix=(
-                    "Move signing values into a gitignored keystore.properties or environment "
-                    "variables, and if the file was ever pushed, treat the keystore as burned "
-                    "and enroll in Play App Signing with a fresh upload key."
-                ),
-                location=Location(f.relpath, f.line_of(match.start())),
-                evidence=f"{name} = {_redact(value)}",
-                refs=("https://developer.android.com/studio/publish/app-signing",),
-            )
+                continue  # unquoted expression in a build script → a lookup, not a secret
+            if not value or _looks_like_placeholder(value) or _INDIRECTION.match(value):
+                continue
+            yield _signing_finding(name, value, status, f, f.line_of(match.start()))
 
 
 @rule("secrets.keystore_files")
@@ -311,22 +363,49 @@ def keystore_files(ctx: ScanContext) -> Iterator[Finding]:
             if path.suffix.lower() not in KEYSTORE_SUFFIXES:
                 continue
             rel = str(path.relative_to(root))
+            status = ctx.git.status(rel)
             ignored = path.suffix.lower().lstrip(".") in gitignore or path.name in gitignore
+
+            if status == "committed":
+                sev = Severity.HIGH
+                title = f"Key material is committed to git: {path.name}"
+                why = (
+                    "This keystore/private key is tracked in git, so it is in the history and in "
+                    "every clone. Anyone with the repo can sign builds as you."
+                )
+                fix = (
+                    "Remove it from history, rotate the key, and enroll in Play App Signing with a "
+                    "fresh upload key. A keystore that was ever pushed must be treated as burned."
+                )
+            elif status == "uncommitted":
+                sev = Severity.LOW
+                title = f"Key material on disk (not committed): {path.name}"
+                why = (
+                    "The keystore is in the working tree — which is fine, you need it locally to "
+                    "sign — and git confirms it is gitignored and was never committed. Nothing is "
+                    "exposed."
+                )
+                fix = "No action needed. Keep it gitignored and never commit it."
+            else:  # unknown — git not available; fall back to the .gitignore text heuristic
+                sev = Severity.LOW if ignored else Severity.HIGH
+                why = (
+                    "Keystores and private keys inside the repo end up in git history and in any "
+                    "clone of the project."
+                    + (" It appears in .gitignore, so it may not be committed." if ignored else "")
+                )
+                title = f"Key material file in the project tree: {path.name}"
+                fix = (
+                    "Keep the keystore outside the repo or gitignored, and verify with "
+                    "`git log --all --oneline -- <path>` that it was never committed."
+                )
             yield Finding(
                 id="SEC-KEYSTORE-FILE",
-                title=f"Key material file in the project tree: {path.name}",
-                severity=Severity.LOW if ignored else Severity.HIGH,
+                title=title,
+                severity=sev,
                 category=Category.SECURITY,
-                why=(
-                    "Keystores and private keys inside the repo end up in git history and in any "
-                    "clone or archive of the project."
-                    + (" This pattern appears in .gitignore, so it may not be committed." if ignored else "")
-                ),
-                fix=(
-                    "Keep the keystore outside the repo, add the extension to .gitignore, and verify "
-                    "with `git log --all --oneline -- <path>` that it was never committed."
-                ),
+                why=why,
+                fix=fix,
                 location=Location(rel),
                 evidence=rel,
-                refs=("https://developer.android.com/studio/publish/app-signing",),
+                refs=(DOC_SIGNING,),
             )

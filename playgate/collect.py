@@ -5,12 +5,14 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
 import tomllib
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
 from .models import (
     BuildConfig,
+    GitInfo,
     ListingMeta,
     Manifest,
     ManifestComponent,
@@ -26,6 +28,9 @@ SKIP_DIRS = {
     ".git", ".hg", ".svn", ".idea", ".vscode", "__pycache__",
     "build", "out", "bin", "obj", ".gradle", ".kotlin", ".cxx",
     "node_modules", "venv", ".venv", "env",
+    # Nested checkouts / agent worktrees — a second copy of the same repo, which
+    # would otherwise be scanned and double-counted.
+    ".claude", "worktrees", ".worktrees",
     # Unity generated
     "Library", "Temp", "Logs", "UserSettings", "MemoryCaptures",
     # Godot generated
@@ -36,6 +41,9 @@ TEXT_SUFFIXES = {
     ".xml", ".gradle", ".kts", ".properties", ".pro", ".cfg", ".conf",
     ".kt", ".java", ".cs", ".gd", ".js", ".ts", ".json", ".toml",
     ".yaml", ".yml", ".txt", ".asset", ".env", ".plist",
+    # Cloud / BaaS security config: Firebase rules, Supabase migrations,
+    # Cloudflare wrangler.
+    ".rules", ".sql", ".jsonc",
 }
 
 MAX_FILE_BYTES = 2 * 1024 * 1024
@@ -88,6 +96,43 @@ def _should_read(path: Path) -> bool:
     return path.name in {"gradle.properties", "local.properties", "AndroidManifest.xml"}
 
 
+def collect_git_info(root: Path) -> GitInfo:
+    """Ask git what it tracks, so rules can tell a committed secret from a
+    gitignored file that only lives on disk. Best-effort: git being absent, or
+    the tree not being a repo, simply leaves ``available`` False.
+    """
+    if not root.is_dir():
+        return GitInfo()
+
+    def _git(*args: str, timeout: int) -> str | None:
+        try:
+            proc = subprocess.run(
+                ["git", "-C", str(root), *args],
+                capture_output=True, text=True, timeout=timeout, check=False,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return None
+        if proc.returncode != 0:
+            return None
+        return proc.stdout
+
+    inside = _git("rev-parse", "--is-inside-work-tree", timeout=5)
+    if inside is None or inside.strip() != "true":
+        return GitInfo()
+
+    tracked_out = _git("ls-files", timeout=20)
+    # --diff-filter=A lists every path ever added on any branch → "ever committed".
+    history_out = _git("log", "--all", "--pretty=format:", "--name-only", "--diff-filter=A", timeout=30)
+    if tracked_out is None or history_out is None:
+        # Partial data would let us wrongly call a file "uncommitted"; bail to
+        # the filesystem heuristics instead.
+        return GitInfo()
+
+    tracked = {p.replace("\\", "/") for p in tracked_out.splitlines() if p.strip()}
+    historical = {p.replace("\\", "/") for p in history_out.splitlines() if p.strip()}
+    return GitInfo(available=True, tracked=tracked, historical=historical)
+
+
 def walk_files(root: Path) -> list[SourceFile]:
     # SKIP_DIRS is applied to directories *inside* the project only — the
     # project itself may live under a path containing "Temp", "Library",
@@ -95,7 +140,13 @@ def walk_files(root: Path) -> list[SourceFile]:
     # the walk also keeps huge generated trees (Unity's Library/) unvisited.
     files: list[SourceFile] = []
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS)
+        here = Path(dirpath)
+        # Prune SKIP_DIRS, and never descend into a subdirectory that is its own
+        # git root (a submodule or worktree) — scanning it double-counts code.
+        dirnames[:] = sorted(
+            d for d in dirnames
+            if d not in SKIP_DIRS and not (here / d / ".git").exists()
+        )
         for name in sorted(filenames):
             if len(files) >= MAX_TOTAL_FILES:
                 return files
@@ -431,6 +482,7 @@ def build_context(root: Path, listing_path: Path | None = None) -> ScanContext:
         else:
             # Gradle, React Native and Flutter all build a normal Gradle module.
             ctx.build = parse_gradle(files)
+        ctx.git = collect_git_info(root)
 
     try:
         ctx.listing = load_listing(listing_path) if listing_path else find_listing(root)

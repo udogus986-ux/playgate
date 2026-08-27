@@ -223,6 +223,29 @@ class ListingMeta:
 
 
 @dataclass
+class GitInfo:
+    """What git knows about the scanned tree, gathered once, best-effort.
+
+    ``available`` is True only when both the tracked and historical sets were
+    read successfully; otherwise rules fall back to filesystem heuristics rather
+    than trust partial data.
+    """
+
+    available: bool = False
+    tracked: set[str] = field(default_factory=set)      # currently tracked (ls-files)
+    historical: set[str] = field(default_factory=set)   # ever committed (log --all)
+
+    def status(self, relpath: str) -> str:
+        """'committed', 'uncommitted', or 'unknown' for a repo-relative path."""
+        if not self.available:
+            return "unknown"
+        rel = relpath.replace("\\", "/")
+        if rel in self.tracked or rel in self.historical:
+            return "committed"
+        return "uncommitted"
+
+
+@dataclass
 class ScanContext:
     """Everything the rules get to look at. Built once per scan."""
 
@@ -232,6 +255,7 @@ class ScanContext:
     manifests: list[Manifest] = field(default_factory=list)
     build: BuildConfig = field(default_factory=BuildConfig)
     listing: ListingMeta | None = None
+    git: GitInfo = field(default_factory=GitInfo)
     notes: list[str] = field(default_factory=list)
 
     def files_with_suffix(self, *suffixes: str) -> Iterable[SourceFile]:

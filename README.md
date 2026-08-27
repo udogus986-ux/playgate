@@ -142,9 +142,10 @@ playgate scan . --baseline playgate-baseline.json         # in CI: only new find
 | Area | Examples |
 | --- | --- |
 | Manifest | debuggable, exported components with no permission guard, missing `android:exported` on API 31+, auto-backup with no exclusions, cleartext traffic, missing `foregroundServiceType` |
-| Secrets | Google/AWS/Stripe/OpenAI/GitHub/Twilio/SendGrid/Mailgun/Google-OAuth keys, Sentry DSNs, Firebase DB & Supabase URLs, private key blocks, service-account JSON, JWTs, keystore passwords in build files, key material in the repo |
+| Secrets | Google/AWS/Stripe/OpenAI/GitHub/Twilio/SendGrid/Mailgun/Google-OAuth keys, Sentry DSNs, Firebase DB & Supabase URLs, private key blocks, service-account JSON, JWTs, keystore passwords — **git-aware**: a value's severity depends on whether git actually tracks the file, and lookups (`getProperty()`, `getenv()`) are not mistaken for literals |
 | Code | WebView JavaScript bridges and file access, disabled TLS validation, world-readable files, ECB/DES/RC4, MD5/SHA-1, credentials in logs, `http://` endpoints |
 | Build | debuggable release, R8 disabled, very old `minSdk` |
+| Cloud / BaaS | open Firebase Firestore/RTDB/Storage rules (incl. "test mode"), Supabase migrations that never enable RLS, and **coverage findings** when a service is used but its security config lives server-side and can't be seen locally |
 | Unity | Mono backend, missing ARM64, game currency in `PlayerPrefs`, IAP with no receipt validation |
 | Godot | sensitive export permissions, missing release keystore, unsigned exports |
 
@@ -191,6 +192,7 @@ Installed as a plugin, playgate adds skills **and three dynamic agents** that ru
 - **`playgate-economy-auditor`** — follows every path that grants currency, an unlock, ad-removal or an entitlement, and asks whether a modified client could reach it without a server agreeing.
 - **`playgate-secret-triage`** — sorts the flagged keys into live-and-dangerous, client-public-by-design, and placeholder, with a rotation plan for each. Never transmits the secret.
 - **`playgate-policy-judge`** — reads the store listing and the real SDK list with a reviewer's eye: permission justification, Data Safety honesty, accessibility/device-admin risk.
+- **`playgate-cloud-auditor`** — verifies the server-side config a static scan can't: logs into Firebase/Supabase/Cloudflare through your own CLIs and checks the live rules, RLS and bucket access.
 
 ```
 /plugin marketplace add udogus986-ux/playgate
@@ -198,6 +200,21 @@ Installed as a plugin, playgate adds skills **and three dynamic agents** that ru
 ```
 
 Then ask, or spawn an agent directly: *"use the economy auditor on this game."*
+
+## What it cannot see (and says so)
+
+playgate reads local files. It does **not** run your app or log into your cloud
+providers, so it cannot see:
+
+- **Firebase / Firestore / RTDB / Storage rules**, **Supabase Row Level Security**, **Cloudflare WAF / Access / R2 public-access** — these live in the provider's console, not the repo. An open Firestore rule or a table with no RLS is invisible to a static scan.
+
+Rather than stay quiet and read as a clean bill of health, playgate emits an
+explicit **coverage finding** (`COV-FIREBASE-RULES`, `COV-SUPABASE-RLS`,
+`COV-CLOUDFLARE`) whenever it detects one of these services but can't verify its
+security locally — telling you exactly what to check by hand. To verify the live
+config, use the **`playgate-cloud-auditor`** agent, which drives your own
+authenticated `firebase` / `supabase` / `wrangler` CLIs (no key ever leaves your
+machine).
 
 ## Limits
 
