@@ -3,7 +3,8 @@ package com.demo
 import android.util.Log
 import android.webkit.WebView
 
-const val API_KEY = "AIzaSyD-9tSrke72PouQMnMX-a7eZSW0jkFMBWY"
+// A hard-coded backend credential, compiled into the shipped APK.
+const val API_KEY = "a3F7kR9tPx2Lm5Qz8Wv1Nb4Hc6Yd0Jg7Ue"
 const val BACKEND = "http://api.demo.example/v1"
 
 class MainActivity {
