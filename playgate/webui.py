@@ -182,15 +182,19 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"error": "not found"}, HTTPStatus.NOT_FOUND)
 
     def do_POST(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
-        if not self._local_request():
-            self._json({"error": "forbidden"}, HTTPStatus.FORBIDDEN)
-            return
         length = int(self.headers.get("Content-Length") or 0)
         if length > MAX_BODY_BYTES:
             self._json({"error": "request too large"}, HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
             return
+        # Drain the request body *before* deciding anything. Responding while an
+        # unread body sits in the socket resets the connection on Windows, so the
+        # client sees a dropped connection instead of our 403/400.
+        raw = self.rfile.read(length) if length else b""
+        if not self._local_request():
+            self._json({"error": "forbidden"}, HTTPStatus.FORBIDDEN)
+            return
         try:
-            payload = json.loads(self.rfile.read(length) or b"{}")
+            payload = json.loads(raw or b"{}")
         except json.JSONDecodeError:
             self._json({"error": "invalid JSON body"}, HTTPStatus.BAD_REQUEST)
             return
