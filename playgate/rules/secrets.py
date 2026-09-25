@@ -109,8 +109,10 @@ STRONG_PATTERNS: list[SecretPattern] = [
 # Looser patterns: real often enough to report, noisy enough to need entropy.
 GENERIC_ASSIGNMENT = re.compile(
     r"""(?ix)
-    \b(api[_-]?key|apikey|secret|secret[_-]?key|access[_-]?token|auth[_-]?token
-       |client[_-]?secret|password|passwd|private[_-]?key)
+    # The name must *end* in a credential word, with any prefix: API_KEY,
+    # apiSecret, dbPassword, stripeApiKey — but not secretKeyAlias.
+    \b(\w*?(?:api[_-]?key|apikey|secret|secret[_-]?key|access[_-]?token|auth[_-]?token
+       |client[_-]?secret|password|passwd|private[_-]?key))
     \s*[:=]\s*
     ["']([^"'\s]{12,120})["']
     """
