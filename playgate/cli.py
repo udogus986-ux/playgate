@@ -101,6 +101,12 @@ def _build_parser() -> argparse.ArgumentParser:
     rel_p.add_argument("--listing", type=Path, default=None, help="path to a playgate.toml/.json")
     rel_p.add_argument("--no-color", action="store_true", help="disable ANSI colour")
 
+    fix_p = sub.add_parser("fix", help="propose (or --apply) fixes for mechanical findings")
+    fix_p.add_argument("target", nargs="?", default=".", help="project directory (default: .)")
+    fix_p.add_argument("--apply", action="store_true", help="write the changes (default: show a diff)")
+    fix_p.add_argument("--only", default="", help="comma-separated finding ids to fix, e.g. AND-BACKUP")
+    fix_p.add_argument("--listing", type=Path, default=None, help="path to a playgate.toml/.json")
+
     init_p = sub.add_parser("init", help="write a template playgate.toml")
     init_p.add_argument("directory", nargs="?", default=".", help="where to write it")
     init_p.add_argument("--force", action="store_true", help="overwrite an existing file")
@@ -216,6 +222,44 @@ def _cmd_release(args: argparse.Namespace) -> int:
     return 1 if blocked else 0
 
 
+def _cmd_fix(args: argparse.Namespace) -> int:
+    from . import fix
+
+    target = Path(args.target).expanduser()
+    if not target.is_dir():
+        print("playgate: fix works on a project directory, not a compiled package", file=sys.stderr)
+        return 2
+    try:
+        report = scan(target, listing_path=args.listing)
+    except (ValueError, RuntimeError) as exc:
+        print(f"playgate: {exc}", file=sys.stderr)
+        return 2
+    only = {x.strip() for x in args.only.split(",") if x.strip()} or None
+    edits, skipped = fix.plan(report, only)
+    if not edits:
+        print("playgate: nothing to fix automatically.")
+        for f in skipped:
+            print(f"  could not place a fix for {f.id} at {f.location.render()} — fix by hand")
+        return 0
+    for edit in edits:
+        print(edit.diff())
+    print("changes:")
+    for edit in edits:
+        for fid, note in edit.applied:
+            print(f"  {edit.relpath}: [{fid}] {note}")
+    for f in skipped:
+        print(f"  skipped {f.id} at {f.location.render()} — fix by hand")
+    if not args.apply:
+        print("\nDry run. Re-run with --apply to write these changes.")
+        return 0
+    fix.apply(edits)
+    after = scan(target, listing_path=args.listing)
+    remaining = {f.fingerprint() for f in after.findings}
+    fixed = [f for f in report.findings if f.id in fix.FIXERS and f.fingerprint() not in remaining]
+    print(f"\nwrote {len(edits)} file(s); {len(fixed)} finding(s) resolved. Review with `git diff`.")
+    return 0
+
+
 def _cmd_init(args: argparse.Namespace) -> int:
     directory = Path(args.directory).expanduser()
     directory.mkdir(parents=True, exist_ok=True)
@@ -292,6 +336,7 @@ def main(argv: list[str] | None = None) -> int:
     handler = {
         "scan": _cmd_scan,
         "release": _cmd_release,
+        "fix": _cmd_fix,
         "init": _cmd_init,
         "rules": _cmd_rules,
         "standards": _cmd_standards,
