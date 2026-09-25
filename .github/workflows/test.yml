@@ -18,6 +18,8 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: pip install -e ".[dev]"
       - run: pytest -q
+      - name: benchmark
+        run: python -m benchmarks.run
       - name: self-scan the demo project
         run: python -m playgate.cli scan demo --format md -o /tmp/demo-report.md --fail-on never
 

@@ -1,6 +1,6 @@
 {
   "name": "playgate",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Audit Android projects for security issues and Google Play rejection risk before you upload. Deterministic checks via the playgate CLI, an MCP server, and dynamic agents for the judgement a rule cannot make.",
   "author": {
     "name": "Umut"

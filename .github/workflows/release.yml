@@ -1,0 +1,91 @@
+name: release
+
+# Push a tag like v0.3.0 to publish. Nothing here runs on ordinary pushes.
+#
+# PyPI uses Trusted Publishing — no API token stored in the repo. One-time
+# setup on pypi.org: add a trusted publisher for this repository with
+# workflow "release.yml" and environment "pypi".
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - run: pytest -q
+      - name: tag matches package version
+        run: |
+          v=$(python -c "import playgate; print(playgate.__version__)")
+          test "v$v" = "${GITHUB_REF_NAME}" || { echo "tag ${GITHUB_REF_NAME} != package v$v"; exit 1; }
+
+  exe:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pyinstaller
+      - run: ./packaging/build.ps1
+        shell: pwsh
+      - name: smoke test
+        run: |
+          ./dist/playgate.exe --version
+          ./dist/playgate.exe scan demo --fail-on never --no-color
+        shell: pwsh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: playgate-exe
+          path: dist/playgate.exe
+
+  dist:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install build
+      - run: python -m build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  github-release:
+    needs: [exe, dist]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            out/playgate-exe/playgate.exe
+            out/dist/*
+          generate_release_notes: true
+
+  pypi:
+    needs: [dist]
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write   # OIDC for PyPI Trusted Publishing
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - uses: pypa/gh-action-pypi-publish@release/v1

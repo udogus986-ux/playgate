@@ -1,0 +1,40 @@
+name: policy freshness
+
+# Google Play requirements move. Once playgate/data/policy.toml is past its
+# `reviewed_until` date, open (or keep open) an issue asking for a review.
+
+on:
+  schedule:
+    - cron: "0 7 * * 1"   # Mondays 07:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e .
+      - id: policy
+        run: python -m playgate.cli policy --check | tee policy.txt
+        continue-on-error: true
+      - name: open a review issue when stale
+        if: steps.policy.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="Review Google Play policy data (policy.toml is past its review horizon)"
+          if gh issue list --state open --search "$title in:title" --json number --jq '.[0].number' | grep -q .; then
+            echo "issue already open"; exit 0
+          fi
+          { echo 'The weekly check found `playgate/data/policy.toml` past `reviewed_until`.'; echo;
+            echo '```'; cat policy.txt; echo '```'; echo;
+            echo 'Check the target API level and deadlines at https://support.google.com/googleplay/android-developer/answer/11926878,'
+            echo 'update the file, bump `version`, set `reviewed_on`/`reviewed_until` and add a changelog entry.'; } > body.md
+          gh issue create --title "$title" --body-file body.md

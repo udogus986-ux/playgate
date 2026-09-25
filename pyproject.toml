@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "playgate"
-version = "0.2.0"
+version = "0.3.0"
 description = "Pre-flight checks for Android apps: security issues and Google Play rejection risk."
 readme = "README.md"
 requires-python = ">=3.11"
