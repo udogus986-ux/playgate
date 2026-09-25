@@ -12,6 +12,8 @@ diagnostics go to stderr.
 
 Tools exposed:
   playgate_scan          run the scanner over a path (project dir, .apk, .aab)
+  playgate_release_check Play / App Store submission dry-run
+  playgate_probe_plan    adb commands to dynamically test exported components
   playgate_detect        report the project kind and whether a listing exists
   playgate_list_rules    enumerate every deterministic check
   playgate_init_listing  write the playgate.toml template
@@ -80,6 +82,19 @@ TOOLS = [
                 "store": {"type": "string", "enum": ["auto", "play", "appstore", "all"],
                           "description": "default auto: whichever stores the project ships to"},
             },
+            "required": ["path"],
+        },
+    },
+    {
+        "name": "playgate_probe_plan",
+        "description": (
+            "Build a dynamic test plan from the manifest: for every exported activity, service, "
+            "receiver, provider and deep link, the adb command to exercise it on the developer's own "
+            "emulator/device and what a safe result looks like. Does not execute anything."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {"path": {"type": "string"}},
             "required": ["path"],
         },
     },
@@ -155,6 +170,19 @@ def _tool_release_check(args: dict) -> str:
     return to_release_checklist(report, store=str(args.get("store") or "auto"))
 
 
+def _tool_probe_plan(args: dict) -> str:
+    from . import probe
+    from .collect import build_context
+
+    raw = str(args.get("path") or "").strip()
+    if not raw:
+        raise ValueError("path is required")
+    target = Path(raw).expanduser()
+    if not target.exists():
+        raise ValueError(f"no such path: {target}")
+    return probe.to_json(probe.build_plan(build_context(target)))
+
+
 def _tool_detect(args: dict) -> str:
     raw = str(args.get("path") or "").strip()
     if not raw:
@@ -201,6 +229,7 @@ def _tool_init_listing(args: dict) -> str:
 TOOL_IMPL = {
     "playgate_scan": _tool_scan,
     "playgate_release_check": _tool_release_check,
+    "playgate_probe_plan": _tool_probe_plan,
     "playgate_detect": _tool_detect,
     "playgate_list_rules": _tool_list_rules,
     "playgate_init_listing": _tool_init_listing,

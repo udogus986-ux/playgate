@@ -40,6 +40,21 @@ rule means the database is open. Check Realtime Database and Storage rules the
 same way. If the CLI cannot fetch them, tell the user to open **Console →
 Firestore/Realtime Database/Storage → Rules** and paste them for review.
 
+### Test the rules, not just read them
+
+Reading rules misses logic errors. If the project has `firestore.rules`, run
+them against the **local emulator** with a few adversarial cases — this touches
+no production data:
+
+```bash
+firebase emulators:start --only firestore   # in one terminal
+```
+
+Then, with `@firebase/rules-unit-testing`, assert that an unauthenticated
+client and a *different* signed-in user are both denied on another user's
+documents, and that the owner is allowed. A rule that lets user B read user A's
+document is the most common real Firestore flaw, and only a test shows it.
+
 ## 3. Supabase
 
 The one question: **is RLS on for every table, with policies that actually

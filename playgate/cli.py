@@ -109,6 +109,10 @@ def _build_parser() -> argparse.ArgumentParser:
     fix_p.add_argument("--only", default="", help="comma-separated finding ids to fix, e.g. AND-BACKUP")
     fix_p.add_argument("--listing", type=Path, default=None, help="path to a playgate.toml/.json")
 
+    probe_p = sub.add_parser("probe", help="generate adb commands to dynamically test exported components")
+    probe_p.add_argument("target", nargs="?", default=".", help="project directory, .apk or .aab")
+    probe_p.add_argument("--format", choices=("text", "json"), default="text")
+
     init_p = sub.add_parser("init", help="write a template playgate.toml")
     init_p.add_argument("directory", nargs="?", default=".", help="where to write it")
     init_p.add_argument("--force", action="store_true", help="overwrite an existing file")
@@ -265,6 +269,24 @@ def _cmd_fix(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_probe(args: argparse.Namespace) -> int:
+    from . import probe
+    from .collect import build_context
+
+    target = Path(args.target).expanduser()
+    if not target.exists():
+        print(f"playgate: no such path: {target}", file=sys.stderr)
+        return 2
+    try:
+        ctx = build_context(target)
+    except (ValueError, RuntimeError) as exc:
+        print(f"playgate: {exc}", file=sys.stderr)
+        return 2
+    plan = probe.build_plan(ctx)
+    print(probe.to_json(plan) if args.format == "json" else probe.to_text(ctx, plan))
+    return 0
+
+
 def _cmd_init(args: argparse.Namespace) -> int:
     directory = Path(args.directory).expanduser()
     directory.mkdir(parents=True, exist_ok=True)
@@ -342,6 +364,7 @@ def main(argv: list[str] | None = None) -> int:
         "scan": _cmd_scan,
         "release": _cmd_release,
         "fix": _cmd_fix,
+        "probe": _cmd_probe,
         "init": _cmd_init,
         "rules": _cmd_rules,
         "standards": _cmd_standards,
