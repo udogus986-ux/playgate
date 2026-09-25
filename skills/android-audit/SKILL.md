@@ -22,6 +22,14 @@ file — so verify each one against the source before repeating it. **If a
 finding does not reproduce, say so and drop it.** A security report that cries
 wolf is worse than no report.
 
+Useful follow-ups from the same CLI:
+
+- `playgate release <path>` — per-store GO / NO-GO (Play and/or App Store).
+- `playgate fix <path>` — diffs for the mechanical findings; only `--apply` writes.
+- `playgate probe <path> --format json` — adb commands to confirm exported
+  components are really reachable (hand these to the `playgate-dynamic-tester`
+  agent; run only on the user's own emulator/device).
+
 If the run reports `PLY-NO-LISTING`, roughly half the policy checks were
 skipped. Offer to create `playgate.toml` (see the `play-rejection-check`
 skill) rather than silently reporting a partial picture.

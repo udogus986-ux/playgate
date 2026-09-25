@@ -265,10 +265,12 @@ def handle(message: dict) -> dict | None:
             "capabilities": {"tools": {"listChanged": False}},
             "serverInfo": {"name": "playgate", "version": __version__},
             "instructions": (
-                "playgate audits Android projects and packages for security issues and Google "
-                "Play rejection risk. Call playgate_detect first, then playgate_scan. Treat each "
-                "finding's evidence as a quote to verify, and never promise Play approval — the "
-                "rule set is fixed and finite."
+                "playgate audits Android and iOS projects and packages for security issues and "
+                "Google Play / App Store rejection risk. Call playgate_detect first, then "
+                "playgate_scan; use playgate_release_check for a store go/no-go and "
+                "playgate_probe_plan for adb commands to test exported components on the user's "
+                "own device. Treat each finding's evidence as a quote to verify, and never promise "
+                "store approval — the rule set is fixed and finite."
             ),
         })
 
