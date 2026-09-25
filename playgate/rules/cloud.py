@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from typing import Iterator
 
 from ..models import Category, Finding, Location, ScanContext, Severity, SourceFile
-from .base import rule
+from .base import cached, rule
 
 DOC_FIREBASE_RULES = "https://firebase.google.com/docs/rules/basics"
 DOC_SUPABASE_RLS = "https://supabase.com/docs/guides/database/postgres/row-level-security"
@@ -122,7 +122,7 @@ def _detect(ctx: ScanContext) -> _Detected:
 
 @rule("cloud.firebase")
 def firebase(ctx: ScanContext) -> Iterator[Finding]:
-    d = _detect(ctx)
+    d = cached(ctx, "cloud", _detect)
     if not d.firebase:
         return
 
@@ -192,7 +192,7 @@ def firebase(ctx: ScanContext) -> Iterator[Finding]:
 
 @rule("cloud.supabase")
 def supabase(ctx: ScanContext) -> Iterator[Finding]:
-    d = _detect(ctx)
+    d = cached(ctx, "cloud", _detect)
     if not d.supabase:
         return
 
@@ -245,7 +245,7 @@ def supabase(ctx: ScanContext) -> Iterator[Finding]:
 
 @rule("cloud.cloudflare")
 def cloudflare(ctx: ScanContext) -> Iterator[Finding]:
-    d = _detect(ctx)
+    d = cached(ctx, "cloud", _detect)
     if not d.cloudflare:
         return
     yield Finding(

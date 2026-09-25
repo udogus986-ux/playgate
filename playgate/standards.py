@@ -112,6 +112,13 @@ STANDARDS_MAP: dict[str, Standards] = {
     "CODE-LOG-SECRET": Standards(cwe=(532,), masvs=("MASVS-STORAGE",), owasp_mobile="M9"),
     "CODE-HTTP-URL": _CLEARTEXT,
     "CODE-EXTERNAL-STORAGE": Standards(cwe=(312,), masvs=("MASVS-STORAGE",), owasp_mobile="M9"),
+    # Taint (source → sink flows)
+    "TAINT-WEBVIEW-URL": Standards(cwe=(939, 601), masvs=("MASVS-PLATFORM",), owasp_mobile="M4"),
+    "TAINT-JS-INJECTION": Standards(cwe=(79,), masvs=("MASVS-PLATFORM",), owasp_mobile="M4"),
+    "TAINT-SQLI": Standards(cwe=(89,), masvs=("MASVS-CODE",), owasp_mobile="M4"),
+    "TAINT-CMD": Standards(cwe=(78,), masvs=("MASVS-CODE",), owasp_mobile="M4"),
+    "TAINT-PATH": Standards(cwe=(22,), masvs=("MASVS-STORAGE",), owasp_mobile="M4"),
+    "TAINT-INTENT-REDIRECT": Standards(cwe=(940,), masvs=("MASVS-PLATFORM",), owasp_mobile="M8"),
     # Unity
     "UNI-MONO-BACKEND": Standards(cwe=(656,), masvs=("MASVS-RESILIENCE",), owasp_mobile="M7"),
     "UNI-PLAYERPREFS-ECONOMY": _CLIENT_TRUST,

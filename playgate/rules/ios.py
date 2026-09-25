@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from typing import Iterator
 
 from ..models import Category, Finding, Location, ScanContext, Severity, SourceFile
-from .base import rule
+from .base import cached, rule
 
 DOC_ATS = "https://developer.apple.com/documentation/security/preventing-insecure-network-connections"
 DOC_PRIVACY_MANIFEST = "https://developer.apple.com/documentation/bundleresources/privacy-manifest-files"
@@ -69,7 +69,7 @@ def _detect(ctx: ScanContext) -> _IOS:
 
 @rule("ios.ats")
 def app_transport_security(ctx: ScanContext) -> Iterator[Finding]:
-    ios = _detect(ctx)
+    ios = cached(ctx, "ios", _detect)
     if not ios.present:
         return
     for f in ios.info_plists:
@@ -97,7 +97,7 @@ def app_transport_security(ctx: ScanContext) -> Iterator[Finding]:
 
 @rule("ios.usage_descriptions")
 def usage_descriptions(ctx: ScanContext) -> Iterator[Finding]:
-    ios = _detect(ctx)
+    ios = cached(ctx, "ios", _detect)
     if not ios.present:
         return
     for f in ios.info_plists:
@@ -127,7 +127,7 @@ def usage_descriptions(ctx: ScanContext) -> Iterator[Finding]:
 
 @rule("ios.privacy_manifest")
 def privacy_manifest(ctx: ScanContext) -> Iterator[Finding]:
-    ios = _detect(ctx)
+    ios = cached(ctx, "ios", _detect)
     if not ios.present or ios.has_privacy_manifest:
         return
     yield Finding(
@@ -155,7 +155,7 @@ def privacy_manifest(ctx: ScanContext) -> Iterator[Finding]:
 
 @rule("ios.uiwebview")
 def deprecated_uiwebview(ctx: ScanContext) -> Iterator[Finding]:
-    ios = _detect(ctx)
+    ios = cached(ctx, "ios", _detect)
     if not ios.present:
         return
     pattern = re.compile(r"\bUIWebView\b")
@@ -184,7 +184,7 @@ def deprecated_uiwebview(ctx: ScanContext) -> Iterator[Finding]:
 
 @rule("ios.tracking")
 def app_tracking_transparency(ctx: ScanContext) -> Iterator[Finding]:
-    ios = _detect(ctx)
+    ios = cached(ctx, "ios", _detect)
     if not ios.present:
         return
     idfa = re.compile(r"\b(ASIdentifierManager|advertisingIdentifier|ATTrackingManager)\b")
@@ -223,7 +223,7 @@ def app_tracking_transparency(ctx: ScanContext) -> Iterator[Finding]:
 
 @rule("ios.encryption_export")
 def encryption_export(ctx: ScanContext) -> Iterator[Finding]:
-    ios = _detect(ctx)
+    ios = cached(ctx, "ios", _detect)
     if not ios.present or not ios.info_plists:
         return
     if any(_HAS_KEY(f.text, "ITSAppUsesNonExemptEncryption") for f in ios.info_plists):

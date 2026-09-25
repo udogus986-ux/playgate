@@ -44,3 +44,12 @@ def iter_matches(text: str, pattern) -> Iterator:
     if len(text) > 4_000_000:
         text = text[:4_000_000]
     yield from pattern.finditer(text)
+
+
+def cached(ctx: ScanContext, key: str, compute: Callable[[ScanContext], object]):
+    """Compute a derived view of the scan once and share it across rules
+    (e.g. the cloud/iOS detection several rules each need)."""
+    store = ctx.__dict__.setdefault("_rule_cache", {})
+    if key not in store:
+        store[key] = compute(ctx)
+    return store[key]
