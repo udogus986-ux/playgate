@@ -108,6 +108,10 @@ def _build_parser() -> argparse.ArgumentParser:
     sub.add_parser("rules", help="list every registered rule")
     sub.add_parser("standards", help="show how findings map to CWE / MASVS / OWASP Mobile Top 10")
 
+    pol_p = sub.add_parser("policy", help="show the Google Play policy data version and freshness")
+    pol_p.add_argument("--check", action="store_true",
+                       help="exit 1 if the policy data is past its review horizon (for CI)")
+
     ui_p = sub.add_parser("ui", help="open the local web interface in a browser")
     ui_p.add_argument("--port", type=int, default=8765, help="port to listen on (default: 8765)")
     ui_p.add_argument("--no-browser", action="store_true", help="do not open a browser tab")
@@ -231,6 +235,28 @@ def _cmd_rules(_: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_policy(args: argparse.Namespace) -> int:
+    from datetime import date
+
+    from .rules.policy import POLICY, deadline_note
+
+    ta = POLICY["target_api"]
+    print(f"policy data version : {POLICY['version']}")
+    print(f"reviewed on         : {POLICY['reviewed_on']}")
+    print(f"valid until         : {POLICY['reviewed_until']}")
+    print(f"target API          : {ta['standard']} (discoverability floor {ta['discoverability']})")
+    print(f"deadline            : {ta['deadline']}")
+    print("\nchangelog:")
+    for entry in POLICY.get("changelog", []):
+        print(f"  {entry['date']}  {entry['change']}")
+    stale = deadline_note(date.today())
+    if stale:
+        print(f"\nSTALE: {stale}")
+        return 1 if args.check else 0
+    print("\nstatus: fresh")
+    return 0
+
+
 def _cmd_standards(_: argparse.Namespace) -> int:
     from .standards import SCOPE, STANDARDS_MAP, standards_for
 
@@ -269,6 +295,7 @@ def main(argv: list[str] | None = None) -> int:
         "init": _cmd_init,
         "rules": _cmd_rules,
         "standards": _cmd_standards,
+        "policy": _cmd_policy,
         "ui": _cmd_ui,
         "mcp": _cmd_mcp,
     }[args.command]

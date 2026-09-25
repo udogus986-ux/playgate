@@ -1,0 +1,31 @@
+# Google Play requirements playgate checks against.
+#
+# This file is data, not code: when Play moves a deadline, edit it here, bump
+# `version`, add a changelog entry and set `reviewed_on` / `reviewed_until`.
+# `playgate policy` prints the current state; every scan warns once
+# `reviewed_until` is in the past.
+
+version = "2026.09"
+reviewed_on = "2026-09-25"
+# The last day this data is believed to match Play policy. After it, every
+# report carries a staleness note until someone re-reviews the file.
+reviewed_until = "2026-11-01"
+
+[target_api]
+standard = 36          # Android 16 — new apps and updates
+wear_auto = 35
+tv_xr = 34
+discoverability = 35   # existing apps below this stop being offered on newer devices
+deadline = "31 August 2026 (extension requests honoured until 1 November 2026)"
+
+[testing]
+closed_test_testers = 12
+closed_test_days = 14
+
+[[changelog]]
+date = "2026-09-25"
+change = "Moved requirements out of code into policy.toml. The 31 Aug 2026 API 36 deadline has passed; extensions run to 1 Nov 2026."
+
+[[changelog]]
+date = "2026-08-27"
+change = "Initial rule set: target API 36 for new apps and updates."

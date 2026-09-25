@@ -183,4 +183,26 @@ def test_deadline_note_fires_after_horizon() -> None:
 
 def test_deadline_note_appears_in_scan(gradle_project) -> None:
     report = scan(gradle_project(), today=date(2027, 6, 1))
-    assert any("rule set was last reviewed" in n for n in report.notes)
+    assert any("was last reviewed" in n and "policy.toml" in n for n in report.notes)
+
+
+def test_policy_data_is_loaded_from_toml() -> None:
+    from playgate.rules.policy import POLICY, REQUIREMENTS
+
+    assert REQUIREMENTS["standard"] == POLICY["target_api"]["standard"]
+    assert POLICY["changelog"], "policy data must carry a changelog"
+
+
+def test_policy_command_check_fails_when_stale(monkeypatch, capsys) -> None:
+    import datetime as dt
+
+    import playgate.cli as cli_mod
+
+    class FakeDate(dt.date):
+        @classmethod
+        def today(cls):
+            return cls(2099, 1, 1)
+
+    monkeypatch.setattr(dt, "date", FakeDate)
+    assert cli_mod.main(["policy", "--check"]) == 1
+    assert "STALE" in capsys.readouterr().out

@@ -6,7 +6,7 @@ look for a contradiction between the two, plus the hard requirements that are
 checked automatically at upload.
 
 Requirement levels are current as of August 2026 and are the part of this file
-most likely to age — see REQUIREMENTS below and the linked policy pages.
+most likely to age — they live in playgate/data/policy.toml, not in this file.
 """
 
 from __future__ import annotations
@@ -29,21 +29,30 @@ DOC_ACCESSIBILITY = "https://support.google.com/googleplay/android-developer/ans
 DOC_FAMILIES = "https://support.google.com/googleplay/android-developer/answer/9893335"
 DOC_ADID = "https://support.google.com/googleplay/android-developer/answer/6048248"
 
-# Target API level floors. Update these when Play moves the deadline.
+
+def _load_policy() -> dict:
+    """Read playgate/data/policy.toml. Requirements are data, not code, so a
+    deadline change is a one-line edit with a changelog entry."""
+    import tomllib
+
+    from ..resources import data_path
+
+    with open(data_path("data", "policy.toml"), "rb") as fh:
+        return tomllib.load(fh)
+
+
+POLICY = _load_policy()
+
+# Flat view kept for the rules below (and anything importing REQUIREMENTS).
 REQUIREMENTS = {
-    "standard": 36,      # Android 16, required for new apps and updates
-    "wear_auto": 35,
-    "tv_xr": 34,
-    "discoverability": 35,  # existing apps below this lose visibility on new devices
-    "deadline": "31 August 2026 (extension possible to 1 November 2026)",
-    # Machine-readable: the last day this rule set was known to match Play policy.
-    # Past this, requirements have very likely moved; see deadline_note().
-    "reviewed_until": "2026-11-01",
+    **POLICY["target_api"],
+    "reviewed_until": POLICY["reviewed_until"],
+    "version": POLICY["version"],
 }
 
 
 def deadline_note(today) -> str | None:
-    """A staleness warning once the policy horizon in REQUIREMENTS is behind us.
+    """A staleness warning once the policy horizon is behind us.
 
     ``today`` is a ``datetime.date``; injected rather than read here so the
     check is deterministic under test. Returns None while the rule set is fresh.
@@ -54,10 +63,10 @@ def deadline_note(today) -> str | None:
     if today <= horizon:
         return None
     return (
-        f"playgate's Google Play rule set was last reviewed for {horizon.isoformat()} and it is "
-        f"now {today.isoformat()}. Target API level, testing rules and declaration forms move "
-        "over time — treat the policy findings as a starting point and confirm against Play "
-        "Console. Update REQUIREMENTS in playgate/rules/policy.py."
+        f"playgate's Google Play rule set (policy data {REQUIREMENTS['version']}) was last "
+        f"reviewed for {horizon.isoformat()} and it is now {today.isoformat()}. Target API "
+        "level, testing rules and declaration forms move over time — treat the policy findings "
+        "as a starting point and confirm against Play Console. Update playgate/data/policy.toml."
     )
 
 
@@ -595,7 +604,8 @@ def closed_testing(ctx: ScanContext) -> Iterator[Finding]:
         category=Category.POLICY,
         why=(
             "Personal developer accounts created recently must run a closed test with at least "
-            "12 testers who stay opted in for 14 continuous days before production access is "
+            f"{POLICY['testing']['closed_test_testers']} testers who stay opted in for "
+            f"{POLICY['testing']['closed_test_days']} continuous days before production access is "
             "granted. Testers dropping out resets the clock."
         ),
         fix=(
