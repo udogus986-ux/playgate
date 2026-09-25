@@ -1,6 +1,6 @@
 # playgate
 
-Pre-flight checks for Android apps: **security issues** and **Google Play rejection risk**, before you upload.
+Pre-flight checks for Android and iOS apps: **security issues** and **Google Play / App Store rejection risk**, before you upload.
 
 Works on Kotlin/Java Gradle projects, Unity, Godot 4, React Native and Flutter projects, compiled `.apk` / `.aab` files, and **iOS / App Store** projects (Xcode/Swift, or the iOS side of a cross-platform app). No dependencies, no API keys, no network calls — it reads your files and tells you what it found.
 
@@ -37,12 +37,14 @@ playgate checks both, in one pass, and every finding comes with the exact fix.
 ## Install
 
 ```bash
-pip install playgate                 # once published
+pip install playgate                 # from PyPI, once a release is published
 # or, from a clone:
 pip install -e .
 ```
 
-Python 3.11 or newer. Nothing else.
+Python 3.11 or newer. Nothing else. On Windows you can instead download
+`playgate.exe` from the [Releases](https://github.com/udogus986-ux/playgate/releases)
+page — one file, no Python needed.
 
 ## Use
 
@@ -53,7 +55,12 @@ playgate scan . --format md -o report.md
 playgate scan . --format json        # for CI or other tools
 playgate scan . --format sarif       # upload to GitHub code scanning
 playgate scan . --baseline prev.json # show only findings new since prev.json
-playgate release .                   # Google Play submission dry-run (GO / NO-GO)
+playgate scan . --format html -o report.html   # one shareable, filterable file
+playgate release .                   # Play / App Store submission dry-run (GO / NO-GO)
+playgate fix .                       # show fixes for mechanical findings (--apply to write)
+playgate probe .                     # adb commands to test exported components on a device
+playgate policy                      # policy data version, horizon and changelog
+playgate standards                   # finding → CWE / MASVS / OWASP Mobile Top 10
 playgate rules                       # list every check
 playgate ui                          # open the local web interface
 playgate mcp                         # run as an MCP server (see "Dynamic agents")
@@ -61,15 +68,30 @@ playgate mcp                         # run as an MCP server (see "Dynamic agents
 
 ### `playgate release` — a submission dry-run
 
-`playgate release .` turns the scan into a Google Play readiness checklist that mirrors the actual submission flow: every real upload gate — target API, signing, privacy policy, Data Safety, restricted permissions, Play Billing, closed testing, security hygiene — rendered as `PASS` / `FAIL` / `NEEDS-INFO` with the Play Console location for each, and a single **GO / NO-GO** verdict. It exits `1` on any blocking gate, so it drops into a release pipeline. Give it a `--listing playgate.toml` to evaluate the store-side gates.
+`playgate release .` turns the scan into a readiness checklist that mirrors the actual submission flow of each store the project ships to — **Google Play** (target API, signing, privacy policy, Data Safety, restricted permissions, Play Billing, closed testing) and the **Apple App Store** (privacy manifest, purpose strings, App Tracking Transparency, UIWebView, ATS, export compliance), plus security hygiene and known-vulnerable dependencies for both. Every gate is `PASS` / `FAIL` / `NEEDS-INFO` with where it lives in Play Console / App Store Connect, and each store gets a **GO / NO-GO** verdict. `--store play|appstore|all` overrides the detection. It exits `1` on any blocking gate, so it drops into a release pipeline. Give it a `--listing playgate.toml` to evaluate the Play store-side gates.
+
+### `playgate fix` — mechanical fixes
+
+For findings whose correct fix is unambiguous and local — missing `android:exported`, backup, `debuggable`, cleartext, target API, release `debuggable`, WebView debugging, `PendingIntent` mutability, the iOS export-compliance key — `playgate fix .` prints a unified diff with a note per change. Nothing is written until you add `--apply`; it then re-scans and reports what was resolved. Launcher and deep-link activities get `exported="true"` (they must stay reachable), and every fix that changes runtime behaviour says so. Line endings are preserved byte-for-byte.
+
+### `playgate probe` — from "exported" to "reachable"
+
+Static analysis can say a component is exported; only running it says what it does. `playgate probe .` generates the `adb` command to exercise every exported activity, service, receiver, provider and deep link on **your own emulator or device**, and what a safe result looks like. It never runs anything itself. `--format json` feeds the `playgate-dynamic-tester` agent.
+
+### Keeping the policy rules current
+
+Play requirements live in data, not code: `playgate/data/policy.toml` holds the target-API floors and deadlines with a `version`, a review horizon and a changelog. `playgate policy` shows them; after the horizon every report carries a staleness note, `playgate policy --check` exits `1`, and a weekly GitHub Action opens a review issue.
 
 ### The web interface
 
 `playgate ui` starts a local server (127.0.0.1 only, standard library only — still
 no dependencies) and opens a page where you can browse to a project folder or an
-`.apk`/`.aab`, scan it, filter the findings by severity and category, expand each
-one for the why/fix, and download the report as JSON or Markdown. It can also
-write the `playgate.toml` template for you when one is missing.
+`.apk`/`.aab`, scan it, see the release verdict for each store, filter the
+findings by severity and category, expand each one for the why/fix and its
+standards labels, and download the report as JSON, Markdown or HTML. Re-scanning
+the same project shows what is new and what was fixed since the last scan. A
+**fix preview** shows the diffs `playgate fix` would make — the UI itself never
+writes to your files. It can also write the `playgate.toml` template for you.
 
 ```bash
 playgate ui --port 9000 --no-browser   # options, if you need them
@@ -146,9 +168,12 @@ playgate scan . --baseline playgate-baseline.json         # in CI: only new find
 
 | Area | Examples |
 | --- | --- |
-| Manifest | debuggable, exported components with no permission guard, missing `android:exported` on API 31+, auto-backup with no exclusions, cleartext traffic, missing `foregroundServiceType` |
+| Manifest | debuggable, exported components with no permission guard, missing `android:exported` on API 31+, auto-backup with no exclusions, cleartext traffic, missing `foregroundServiceType`, unverified https deep links (`autoVerify`), task hijacking |
 | Secrets | Google/AWS/Stripe/OpenAI/GitHub/Twilio/SendGrid/Mailgun/Google-OAuth keys, Sentry DSNs, Firebase DB & Supabase URLs, private key blocks, service-account JSON, JWTs, keystore passwords — **git-aware**: a value's severity depends on whether git actually tracks the file, and lookups (`getProperty()`, `getenv()`) are not mistaken for literals |
-| Code | WebView JavaScript bridges and file access, disabled TLS validation, world-readable files, ECB/DES/RC4, MD5/SHA-1, credentials in logs, `http://` endpoints |
+| Code | WebView JavaScript bridges and file access, disabled TLS validation, world-readable files, ECB/DES/RC4, MD5/SHA-1, credentials in logs, `http://` endpoints, mutable `PendingIntent`, FileProvider `root-path`, tokens in plain SharedPreferences, biometric auth without a `CryptoObject`, token extras in unscoped broadcasts |
+| Data flow (taint) | intent extras / deep-link parameters followed through local assignments into `WebView.loadUrl`, `evaluateJavascript`, raw SQL, `Runtime.exec`, file paths and `startActivity` (intent redirection) |
+| Dependencies | offline SCA: Gradle coordinates and version catalogs, `package.json` / `package-lock.json` (incl. transitive) against a curated advisory list — Log4Shell, Text4Shell, jackson, snakeyaml, lodash, ws, … |
+| Compiled packages | API usage read from the DEX method table: WebView bridges, dynamic code loading, process-wide TLS overrides, weak ciphers/digests, advertising-ID reads |
 | Build | debuggable release, R8 disabled, very old `minSdk` |
 | Cloud / BaaS | open Firebase Firestore/RTDB/Storage rules (incl. "test mode"), Supabase migrations that never enable RLS, and **coverage findings** when a service is used but its security config lives server-side and can't be seen locally |
 | Unity | Mono backend, missing ARM64, game currency in `PlayerPrefs`, IAP with no receipt validation |
@@ -198,6 +223,7 @@ Installed as a plugin, playgate adds skills **and three dynamic agents** that ru
 - **`playgate-economy-auditor`** — follows every path that grants currency, an unlock, ad-removal or an entitlement, and asks whether a modified client could reach it without a server agreeing.
 - **`playgate-secret-triage`** — sorts the flagged keys into live-and-dangerous, client-public-by-design, and placeholder, with a rotation plan for each. Never transmits the secret.
 - **`playgate-policy-judge`** — reads the store listing and the real SDK list with a reviewer's eye: permission justification, Data Safety honesty, accessibility/device-admin risk.
+- **`playgate-dynamic-tester`** — runs the `playgate probe` plan against your own emulator/device and reports which exported components are actually reachable, which are guarded at runtime, and which crash.
 - **`playgate-cloud-auditor`** — verifies the server-side config a static scan can't: logs into Firebase/Supabase/Cloudflare through your own CLIs and checks the live rules, RLS and bucket access.
 
 ```
@@ -235,8 +261,12 @@ What it deliberately is **not** — stated in every report so a clean run is nev
 
 - **Not a certified/accredited assessment.** It does not claim MASVS L1/L2 verification.
 - **Not DAST.** It does not run the app, so no runtime behaviour is covered.
-- **Not SCA/CVE.** It does not scan dependencies for known CVEs.
+- **Only offline SCA.** Declared versions are checked against a small bundled advisory list (`playgate/data/advisories.toml`), not a live CVE database.
 - **A fixed, finite rule set.** Absence of a finding is *not* evidence of security — the equivalent of MASVS "not tested", not "pass".
+
+## Benchmark
+
+`python -m benchmarks.run` runs a labelled corpus modelled on the vulnerability classes of DIVA, InsecureBankv2, OVAA and AndroGoat, plus benign projects containing the safe version of every flagged pattern. Current result ([benchmarks/RESULTS.md](benchmarks/RESULTS.md)): **87/87 expected findings, 0 false positives, 50/50 rules exercised** — and CI fails if that regresses. The corpus was written alongside the rules, so treat it as a regression gate, not an accuracy claim; [benchmarks/README.md](benchmarks/README.md) describes how to benchmark against the real vulnerable apps.
 
 ## Limits
 
@@ -252,9 +282,13 @@ pip install -e ".[dev]"
 pytest
 ```
 
-The binary-XML and protobuf manifest decoders are tested against manifests built by encoders in `tests/axml_fixture.py` and `tests/proto_fixture.py`, so no sample APK or AAB needs to live in the repo. The MCP server has a full JSON-RPC handshake test in `tests/test_mcp.py`.
+The binary-XML, protobuf and DEX decoders are tested against files built by encoders in `tests/axml_fixture.py`, `tests/proto_fixture.py` and `tests/dex_fixture.py`, so no sample APK or AAB needs to live in the repo; `tests/test_robustness.py` feeds them malformed and hostile input. The MCP server has a full JSON-RPC handshake test in `tests/test_mcp.py`.
 
-Adding a rule: write a function in `playgate/rules/`, decorate it with `@rule("area.name")`, yield `Finding`s. A rule that raises is caught and reported as a note, so it cannot break a scan. Every finding needs `evidence` — a literal quote — so the report can always be checked against the source.
+Adding a rule: write a function in `playgate/rules/`, decorate it with `@rule("area.name")`, yield `Finding`s. A rule that raises is caught and reported as a note, so it cannot break a scan. Every finding needs `evidence` — a literal quote — so the report can always be checked against the source. Then give it a CWE/MASVS/OWASP entry in `playgate/standards.py` and a case in `benchmarks/corpus.py` — the benchmark test fails for any rule no case exercises.
+
+Updating Play requirements: edit `playgate/data/policy.toml`, bump `version`, set `reviewed_on` / `reviewed_until` and add a changelog entry. Adding an advisory: add it to `playgate/data/advisories.toml` with the fixed version for each maintained release line.
+
+Releasing: bump the version, push a `vX.Y.Z` tag. `.github/workflows/release.yml` tests, builds the `.exe` and the wheel, attaches both to a GitHub Release and publishes to PyPI through Trusted Publishing (one-time setup on pypi.org, described in the workflow).
 
 ## License
 
