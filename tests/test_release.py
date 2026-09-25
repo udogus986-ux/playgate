@@ -50,3 +50,48 @@ def test_fully_clean_project_is_ready(tmp_path: Path) -> None:
     assert "VERDICT: READY" in out
     assert "NO-GO" not in out
     assert "[✗]" not in out  # no gate row is a fail (the word FAIL still appears in the legend)
+
+
+# --------------------------------------------------------------------------
+# App Store dry-run and store selection
+# --------------------------------------------------------------------------
+
+def _ios(tmp_path: Path, *, manifest: bool) -> Path:
+    root = tmp_path / "ios"
+    write(root / "Podfile", "platform :ios, '15.0'\n")
+    write(root / "App" / "Info.plist",
+          '<plist version="1.0"><dict>\n<key>CFBundleIdentifier</key><string>x</string>\n'
+          "<key>ITSAppUsesNonExemptEncryption</key><false/>\n</dict></plist>\n")
+    if manifest:
+        write(root / "App" / "PrivacyInfo.xcprivacy", "<plist><dict></dict></plist>\n")
+    return root
+
+
+def test_ios_project_gets_app_store_only(tmp_path: Path) -> None:
+    report = scan(_ios(tmp_path, manifest=False))
+    assert report.platforms == ["ios"]
+    out = to_release_checklist(report)
+    assert "=== Apple App Store ===" in out
+    assert "=== Google Play ===" not in out
+    assert "NO-GO" in out  # privacy manifest missing
+
+
+def test_ios_project_ready_with_manifest(tmp_path: Path) -> None:
+    out = to_release_checklist(scan(_ios(tmp_path, manifest=True)))
+    assert "VERDICT: READY " in out or "VERDICT: READY\n" in out or "VERDICT: READY   " in out
+
+
+def test_store_all_and_release_json(gradle_project) -> None:
+    from playgate.report import release_json
+
+    report = scan(gradle_project(gradle="android { defaultConfig { targetSdk 30 } }\n"))
+    stores = release_json(report, "all")
+    assert [s["store"] for s in stores] == ["play", "appstore"]
+    assert stores[0]["verdict"] == "NO-GO"
+    assert stores[0]["phases"][0]["gates"][0]["status"] == "FAIL"
+
+
+def test_release_cli_store_flag(tmp_path: Path, capsys) -> None:
+    root = _ios(tmp_path, manifest=False)
+    assert main(["release", str(root), "--store", "appstore", "--no-color"]) == 1
+    capsys.readouterr()

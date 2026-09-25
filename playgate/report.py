@@ -263,41 +263,126 @@ def _play_gates(report: Report) -> list[tuple[str, list[tuple[str, str, str]]]]:
     ]
 
 
-def to_release_checklist(report: Report, color: bool = False) -> str:
-    """A Play submission dry-run: every real upload gate as PASS / FAIL / NEEDS-INFO."""
-    gates = _play_gates(report)
-    fails = sum(1 for _, items in gates for _, status, _ in items if status == _FAIL)
-    infos = sum(1 for _, items in gates for _, status, _ in items if status == _INFO)
+def _appstore_gates(report: Report) -> list[tuple[str, list[tuple[str, str, str]]]]:
+    present = {f.id for f in report.findings}
+    sec_high = {f.id for f in report.findings
+                if f.category is Category.SECURITY and f.severity >= Severity.HIGH}
+    return [
+        ("App privacy  (App Store Connect › App Privacy)", [
+            ("Privacy manifest (PrivacyInfo.xcprivacy) present", _gate(present, {"IOS-PRIVACY-MANIFEST-MISSING"}),
+             "add PrivacyInfo.xcprivacy to the app target — ITMS-91053"),
+            ("Every permission has a real purpose string", _gate(present, {"IOS-USAGE-DESC-EMPTY"}),
+             "fill each NS…UsageDescription in Info.plist"),
+            ("Tracking goes through App Tracking Transparency", _gate(present, {"IOS-IDFA-NO-ATT"}),
+             "add NSUserTrackingUsageDescription and request ATT — guideline 5.1.2"),
+        ]),
+        ("Binary  (Xcode › Archive › Validate)", [
+            ("No deprecated UIWebView", _gate(present, {"IOS-UIWEBVIEW"}),
+             "migrate to WKWebView — ITMS-90809"),
+            ("App Transport Security enabled", _gate(present, {"IOS-ATS-ARBITRARY"}),
+             "remove NSAllowsArbitraryLoads or justify it in review notes"),
+        ]),
+        ("Submission  (App Store Connect › Export compliance)", [
+            ("Encryption export compliance declared", _INFO if "IOS-ENCRYPTION-EXPORT" in present else _PASS,
+             "add ITSAppUsesNonExemptEncryption to skip the manual question"),
+        ]),
+        ("Security (pre-release hygiene)", [
+            ("No hard-coded secrets in the build",
+             _FAIL if {i for i in sec_high if i.startswith("SEC-")} else _PASS,
+             "rotate and move server-side"),
+            ("No known-vulnerable dependencies", _gate(present, {"DEP-VULNERABLE"}),
+             "upgrade the flagged libraries (offline advisory list)"),
+        ]),
+    ]
 
-    if fails:
-        verdict, blurb = "NO-GO", f"{fails} blocking item(s) to fix before you submit."
-    elif infos:
-        verdict, blurb = "READY*", f"No blockers, but {infos} item(s) need a playgate.toml to confirm."
-    else:
-        verdict, blurb = "READY", "Every gate playgate can see is clear. Google still reviews what a tool cannot."
 
+STORES = {
+    "play": ("Google Play", _play_gates, "Google"),
+    "appstore": ("Apple App Store", _appstore_gates, "Apple"),
+}
+
+
+def stores_for(report: Report, requested: str = "auto") -> list[str]:
+    if requested == "all":
+        return ["play", "appstore"]
+    if requested in STORES:
+        return [requested]
+    out = []
+    if "android" in report.platforms or not report.platforms:
+        out.append("play")
+    if "ios" in report.platforms:
+        out.append("appstore")
+    return out
+
+
+def release_gates(report: Report, store: str) -> list[tuple[str, list[tuple[str, str, str]]]]:
+    return STORES[store][1](report)
+
+
+def release_blocked(report: Report, store: str = "auto") -> bool:
+    return any(
+        status == _FAIL
+        for s in stores_for(report, store)
+        for _, items in release_gates(report, s)
+        for _, status, _ in items
+    )
+
+
+def _verdict(statuses: list[str]) -> str:
+    return "NO-GO" if _FAIL in statuses else ("READY*" if _INFO in statuses else "READY")
+
+
+def release_json(report: Report, store: str = "auto") -> list[dict]:
+    """Structured gates for the web UI / HTML report / MCP."""
+    out = []
+    for s in stores_for(report, store):
+        gates = release_gates(report, s)
+        out.append({
+            "store": s,
+            "name": STORES[s][0],
+            "verdict": _verdict([st for _, items in gates for _, st, _ in items]),
+            "phases": [
+                {"phase": phase, "gates": [{"name": n, "status": st, "detail": d} for n, st, d in items]}
+                for phase, items in gates
+            ],
+        })
+    return out
+
+
+def to_release_checklist(report: Report, color: bool = False, store: str = "auto") -> str:
+    """A store-submission dry-run: every real gate as PASS / FAIL / NEEDS-INFO."""
     lines = [
         "",
         f"playgate release readiness — {report.root}",
-        f"project type: {report.kind}",
-        "",
-        f"VERDICT: {verdict}   {blurb}",
-        "",
+        f"project type: {report.kind}   platforms: {', '.join(report.platforms) or 'unknown'}",
     ]
-    for phase, items in gates:
-        lines.append(f"{BOLD}{phase}{RESET}" if color else phase)
-        lines.append("-" * 60)
-        for name, status, detail in items:
-            row = f"  [{_MARK[status]}] {status:10} {name}"
-            if color and status == _FAIL:
-                row = f"{ANSI[Severity.HIGH]}{row}{RESET}"
-            lines.append(row)
-            if status in (_FAIL, _INFO):
-                lines.append(f"          → {detail}")
-        lines.append("")
+    for s in stores_for(report, store):
+        name, _, reviewer = STORES[s]
+        gates = release_gates(report, s)
+        fails = sum(1 for _, items in gates for _, status, _ in items if status == _FAIL)
+        infos = sum(1 for _, items in gates for _, status, _ in items if status == _INFO)
+        if fails:
+            verdict, blurb = "NO-GO", f"{fails} blocking item(s) to fix before you submit."
+        elif infos:
+            verdict, blurb = "READY*", f"No blockers, but {infos} item(s) need information to confirm."
+        else:
+            verdict, blurb = "READY", f"Every gate playgate can see is clear. {reviewer} still reviews what a tool cannot."
+        header = f"=== {name} ==="
+        lines += ["", f"{BOLD}{header}{RESET}" if color else header, f"VERDICT: {verdict}   {blurb}", ""]
+        for phase, items in gates:
+            lines.append(f"{BOLD}{phase}{RESET}" if color else phase)
+            lines.append("-" * 60)
+            for gname, status, detail in items:
+                row = f"  [{_MARK[status]}] {status:10} {gname}"
+                if color and status == _FAIL:
+                    row = f"{ANSI[Severity.HIGH]}{row}{RESET}"
+                lines.append(row)
+                if status in (_FAIL, _INFO):
+                    lines.append(f"          → {detail}")
+            lines.append("")
     lines.append(
-        "Legend: PASS clear · FAIL blocks submission · NEEDS-INFO give a playgate.toml. "
-        "A clean checklist is a pre-flight, not Google's decision."
+        "Legend: PASS clear · FAIL blocks submission · NEEDS-INFO needs a playgate.toml or a "
+        "store-side answer. A clean checklist is a pre-flight, not the store's decision."
     )
     lines.append("")
     return "\n".join(lines)
@@ -416,6 +501,7 @@ def to_json(report: Report) -> str:
         "counts": report.counts(),
         "rejection_score": report.rejection_score(),
         "rejection_band": report.rejection_band(),
+        "platforms": report.platforms,
         "standards": SCOPE,
         "inputs": report.inputs,
         "notes": report.notes,

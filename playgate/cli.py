@@ -100,6 +100,8 @@ def _build_parser() -> argparse.ArgumentParser:
     rel_p.add_argument("target", nargs="?", default=".", help="path to scan (default: .)")
     rel_p.add_argument("--listing", type=Path, default=None, help="path to a playgate.toml/.json")
     rel_p.add_argument("--no-color", action="store_true", help="disable ANSI colour")
+    rel_p.add_argument("--store", choices=("auto", "play", "appstore", "all"), default="auto",
+                       help="which store to check (default: whichever the project ships to)")
 
     fix_p = sub.add_parser("fix", help="propose (or --apply) fixes for mechanical findings")
     fix_p.add_argument("target", nargs="?", default=".", help="project directory (default: .)")
@@ -214,12 +216,11 @@ def _cmd_release(args: argparse.Namespace) -> int:
     color = sys.stdout.isatty() and not args.no_color
     if color:
         _enable_ansi()
-    print(to_release_checklist(report, color=color))
+    print(to_release_checklist(report, color=color, store=args.store))
     # Exit 1 when any gate blocks submission, so it fits a release pipeline.
-    from .report import _play_gates
+    from .report import release_blocked
 
-    blocked = any(status == "FAIL" for _, items in _play_gates(report) for _, status, _ in items)
-    return 1 if blocked else 0
+    return 1 if release_blocked(report, args.store) else 0
 
 
 def _cmd_fix(args: argparse.Namespace) -> int:

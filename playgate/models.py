@@ -283,6 +283,8 @@ class Report:
     findings: list[Finding]
     notes: list[str] = field(default_factory=list)
     inputs: list[str] = field(default_factory=list)
+    # Which stores the project ships to: "android" and/or "ios".
+    platforms: list[str] = field(default_factory=list)
 
     def sorted_findings(self) -> list[Finding]:
         return sorted(self.findings, key=lambda f: f.sort_key())

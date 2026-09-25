@@ -81,7 +81,22 @@ def scan(
         findings=kept,
         notes=notes,
         inputs=sorted(set(inputs)),
+        platforms=_platforms(ctx),
     )
+
+
+def _platforms(ctx) -> list[str]:
+    from .models import ProjectKind
+    from .rules.base import cached
+    from .rules.ios import _detect as detect_ios
+
+    out = []
+    if ctx.manifests or ctx.kind in {ProjectKind.GRADLE, ProjectKind.UNITY, ProjectKind.GODOT,
+                                     ProjectKind.REACT_NATIVE, ProjectKind.FLUTTER, ProjectKind.APK}:
+        out.append("android")
+    if cached(ctx, "ios", detect_ios).present:
+        out.append("ios")
+    return out
 
 
 def load_baseline(path: Path) -> set[str]:

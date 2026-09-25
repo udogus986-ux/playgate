@@ -66,7 +66,7 @@ TOOLS = [
     {
         "name": "playgate_release_check",
         "description": (
-            "Google Play submission dry-run for a project directory, .apk or .aab: every real "
+            "Google Play / App Store submission dry-run for a project directory, .apk or .aab: every real "
             "upload gate (target API, signing, privacy policy, Data Safety, permissions, billing, "
             "closed testing, security hygiene) rendered as PASS / FAIL / NEEDS-INFO with a GO/NO-GO "
             "verdict and the Play Console location for each. Pass a listing_path for the store-side "
@@ -77,6 +77,8 @@ TOOLS = [
             "properties": {
                 "path": {"type": "string"},
                 "listing_path": {"type": "string"},
+                "store": {"type": "string", "enum": ["auto", "play", "appstore", "all"],
+                          "description": "default auto: whichever stores the project ships to"},
             },
             "required": ["path"],
         },
@@ -150,7 +152,7 @@ def _tool_release_check(args: dict) -> str:
         raise ValueError(f"no such path: {target}")
     listing = args.get("listing_path")
     report = scan(target, listing_path=Path(listing) if listing else None)
-    return to_release_checklist(report)
+    return to_release_checklist(report, store=str(args.get("store") or "auto"))
 
 
 def _tool_detect(args: dict) -> str:
