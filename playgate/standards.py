@@ -82,6 +82,13 @@ STANDARDS_MAP: dict[str, Standards] = {
     "AND-NETSEC-CLEARTEXT": _CLEARTEXT,
     "AND-FGS-TYPE": Standards(masvs=("MASVS-PLATFORM",), owasp_mobile="M8"),
     "AND-TASK-AFFINITY": Standards(cwe=(1021,), masvs=("MASVS-PLATFORM",), owasp_mobile="M8"),
+    "AND-PENDINGINTENT-MUTABLE": Standards(cwe=(927,), masvs=("MASVS-PLATFORM",), owasp_mobile="M8"),
+    "AND-FILEPROVIDER-ROOT": Standards(cwe=(22, 200), masvs=("MASVS-PLATFORM",), owasp_mobile="M8"),
+    "AND-FILEPROVIDER-BROAD": Standards(cwe=(200,), masvs=("MASVS-PLATFORM",), owasp_mobile="M8"),
+    "AND-DEEPLINK-NO-AUTOVERIFY": Standards(cwe=(939,), masvs=("MASVS-PLATFORM",), owasp_mobile="M8"),
+    "AND-BROADCAST-SENSITIVE": Standards(cwe=(927,), masvs=("MASVS-PLATFORM",), owasp_mobile="M8"),
+    "CODE-PREFS-PLAINTEXT": Standards(cwe=(312,), masvs=("MASVS-STORAGE",), owasp_mobile="M9"),
+    "CODE-BIOMETRIC-NO-CRYPTO": Standards(cwe=(287,), masvs=("MASVS-AUTH",), owasp_mobile="M3"),
     # Build
     "BLD-DEBUGGABLE": _DEBUG,
     "BLD-NO-MINIFY": Standards(cwe=(656,), masvs=("MASVS-RESILIENCE",), owasp_mobile="M7"),
