@@ -121,6 +121,15 @@ STANDARDS_MAP: dict[str, Standards] = {
     "TAINT-INTENT-REDIRECT": Standards(cwe=(940,), masvs=("MASVS-PLATFORM",), owasp_mobile="M8"),
     # Dependencies (offline SCA)
     "DEP-VULNERABLE": Standards(cwe=(1395,), masvs=("MASVS-CODE",), owasp_mobile="M2"),
+    # Compiled packages (DEX method table)
+    "DEX-WEBVIEW-JSBRIDGE": Standards(cwe=(749,), masvs=("MASVS-PLATFORM",), owasp_mobile="M8"),
+    "DEX-WEBVIEW-FILEACCESS": Standards(cwe=(668,), masvs=("MASVS-PLATFORM",), owasp_mobile="M8"),
+    "DEX-WEBVIEW-DEBUG": Standards(cwe=(489,), masvs=("MASVS-RESILIENCE",), owasp_mobile="M7"),
+    "DEX-DYNAMIC-CODE": Standards(cwe=(829,), masvs=("MASVS-CODE",), owasp_mobile="M2"),
+    "DEX-GLOBAL-HOSTNAME-VERIFIER": _TLS,
+    "DEX-WEAK-CIPHER": Standards(cwe=(327,), masvs=("MASVS-CRYPTO",), owasp_mobile="M10"),
+    "DEX-WEAK-HASH": Standards(cwe=(328,), masvs=("MASVS-CRYPTO",), owasp_mobile="M10"),
+    "DEX-ADID-READ": _PRIVACY,
     # Unity
     "UNI-MONO-BACKEND": Standards(cwe=(656,), masvs=("MASVS-RESILIENCE",), owasp_mobile="M7"),
     "UNI-PLAYERPREFS-ECONOMY": _CLIENT_TRUST,

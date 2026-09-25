@@ -7,6 +7,8 @@ import zipfile
 from pathlib import Path
 
 from ..axml import AXMLError, decode, looks_like_axml
+from ..dex import DexError, looks_like_dex
+from ..dex import analyze as analyze_dex
 from ..models import BuildConfig, ProjectKind, ScanContext, SourceFile
 from ..proto import ProtoError
 from ..proto import decode as decode_proto
@@ -150,6 +152,14 @@ def context_from_package(path: Path) -> ScanContext:
                 blob = zf.read(info)
             except (zipfile.BadZipFile, RuntimeError):
                 continue
+            if looks_like_dex(blob):
+                try:
+                    refs, crypto = analyze_dex(blob)
+                    for ref in refs:
+                        ctx.api_refs.setdefault(ref, info.filename)
+                    ctx.dex_crypto.update(crypto)
+                except DexError as exc:
+                    ctx.notes.append(f"{info.filename}: method table unreadable ({exc}); API checks skipped.")
             text = _extract_strings(blob)
             if text:
                 label = f"{info.filename} (extracted strings)"

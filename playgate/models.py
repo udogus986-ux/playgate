@@ -257,6 +257,10 @@ class ScanContext:
     build: BuildConfig = field(default_factory=BuildConfig)
     listing: ListingMeta | None = None
     git: GitInfo = field(default_factory=GitInfo)
+    # Compiled packages only: 'Lpkg/Class;->method' references read from DEX,
+    # mapped to the dex file they came from.
+    api_refs: dict[str, str] = field(default_factory=dict)
+    dex_crypto: set[str] = field(default_factory=set)  # weak cipher/digest names in DEX
     notes: list[str] = field(default_factory=list)
 
     def files_with_suffix(self, *suffixes: str) -> Iterable[SourceFile]:
