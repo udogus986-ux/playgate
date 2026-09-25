@@ -76,7 +76,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help="path to a playgate.toml/.json listing file (default: auto-detect)",
     )
     scan_p.add_argument(
-        "--format", choices=("text", "md", "json", "sarif"), default="text",
+        "--format", choices=("text", "md", "json", "sarif", "html"), default="text",
         help="output format (sarif uploads to GitHub code scanning)",
     )
     scan_p.add_argument("-o", "--output", type=Path, default=None, help="write to a file")
@@ -182,6 +182,10 @@ def _cmd_scan(args: argparse.Namespace) -> int:
         rendered = to_json(shown)
     elif args.format == "sarif":
         rendered = to_sarif(shown)
+    elif args.format == "html":
+        from .html_report import to_html
+
+        rendered = to_html(shown)
     elif args.format == "md":
         rendered = to_markdown(shown)
     else:

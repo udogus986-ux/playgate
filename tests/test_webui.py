@@ -99,3 +99,34 @@ def test_foreign_origin_is_refused(server, tmp_path: Path) -> None:
         headers={"Origin": "https://evil.example.com", "Host": "127.0.0.1"},
     )
     assert status == 403
+
+
+def test_scan_includes_release(server, tmp_path: Path) -> None:
+    root = tmp_path / "rel"
+    write(root / "settings.gradle", "include ':app'\n")
+    write(root / "app" / "build.gradle", "android { defaultConfig { targetSdk 30 } }\n")
+    status, data = request(server, "POST", "/api/scan", {"target": str(root)})
+    assert status == 200
+    assert data["release"][0]["store"] == "play"
+    assert data["release"][0]["verdict"] == "NO-GO"
+
+
+def test_html_endpoint(server, tmp_path: Path) -> None:
+    root = tmp_path / "h"
+    write(root / "settings.gradle", "include ':app'\n")
+    status, data = request(server, "POST", "/api/html", {"target": str(root)})
+    assert status == 200
+    assert data["html"].startswith("<!doctype html>")
+
+
+def test_fix_preview_never_writes(server, tmp_path: Path) -> None:
+    root = tmp_path / "fx"
+    write(root / "settings.gradle", "include ':app'\n")
+    write(root / "app" / "build.gradle", "android { defaultConfig { targetSdk 30 } }\n")
+    gradle = root / "app" / "build.gradle"
+    before = gradle.read_bytes()
+    status, data = request(server, "POST", "/api/fix-preview", {"target": str(root)})
+    assert status == 200
+    assert data["edits"] and "targetSdk 36" in data["edits"][0]["diff"]
+    assert "--apply" in data["command"]
+    assert gradle.read_bytes() == before

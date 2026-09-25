@@ -158,6 +158,23 @@
   .rulestable td { padding: 6px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
   .rulestable td:first-child { font-family: var(--mono); white-space: nowrap; color: var(--accent); }
 
+  /* release readiness */
+  .stores { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 16px; }
+  .stores .card { flex: 1; min-width: 300px; }
+  .verdict { font-size: 18px; font-weight: 700; }
+  .verdict.NO-GO { color: var(--critical); } .verdict.READY { color: var(--ok); }
+  .verdict.READYx { color: var(--medium); }
+  .gphase { font-size: 12px; color: var(--dim); margin: 10px 0 4px; }
+  .gate { display: flex; gap: 10px; font-size: 13px; padding: 2px 0; }
+  .gate .gst { width: 88px; flex-shrink: 0; font-family: var(--mono); font-size: 11px; padding-top: 2px; }
+  .gst.FAIL { color: var(--critical); } .gst.PASS { color: var(--ok); } .gst.NEEDS-INFO { color: var(--medium); }
+  .history { margin-top: 14px; padding: 10px 14px; border-radius: 10px; font-size: 14px;
+             background: var(--panel); border: 1px dashed var(--border); }
+  .newbadge { font-size: 10px; font-weight: 700; color: #fff; background: var(--accent);
+              border-radius: 4px; padding: 1px 6px; flex-shrink: 0; }
+  pre.diff { font-family: var(--mono); font-size: 12px; background: var(--panel2); border: 1px solid var(--border);
+             border-radius: 8px; padding: 10px; overflow-x: auto; white-space: pre; margin: 6px 0 14px; }
+
   /* toast */
   #toast {
     position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
@@ -226,6 +243,17 @@
   </div>
 </div>
 
+<!-- fix preview (read-only) -->
+<div class="overlay" id="fixOverlay">
+  <div class="modal" style="width:min(860px,94vw)">
+    <div class="mhead">
+      <div class="mtitle">Fix preview — nothing is written</div>
+      <button class="small" id="btnFixClose">✕</button>
+    </div>
+    <div class="mlist" id="fixBody"></div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -286,6 +314,7 @@ async function runScan() {
   btn.innerHTML = '<span class="spin"></span>Scanning…';
   try {
     report = await api("/api/scan", { target });
+    report.history = compareWithLast(report);
     view = { category: "all", minSeverity: "INFO", search: "" };
     renderResults();
   } catch (err) {
@@ -293,6 +322,83 @@ async function runScan() {
   } finally {
     btn.disabled = false;
     btn.textContent = "Scan";
+  }
+}
+
+// Remember each target's last scan (fingerprints only) in this browser, so a
+// re-scan can say what is new and what was fixed. Storage may be unavailable
+// (private window, blocked site data) — then there is simply no comparison.
+function compareWithLast(rep) {
+  const key = "playgate:last:" + rep.root;
+  const prints = rep.findings.map((f) => f.fingerprint);
+  let prev = null;
+  try { prev = JSON.parse(localStorage.getItem(key) || "null"); } catch { prev = null; }
+  try { localStorage.setItem(key, JSON.stringify({ when: new Date().toISOString(), prints })); } catch { /* ignore */ }
+  if (!prev || !Array.isArray(prev.prints)) return null;
+  const before = new Set(prev.prints);
+  const now = new Set(prints);
+  return {
+    when: prev.when,
+    newSet: new Set(prints.filter((p) => !before.has(p))),
+    fixed: prev.prints.filter((p) => !now.has(p)).length,
+  };
+}
+
+function renderRelease() {
+  if (!report.release || !report.release.length) return "";
+  return `<div class="section"><p class="sectionhead">Release readiness</p><div class="stores">` +
+    report.release.map((st) => `
+      <div class="card">
+        <div class="verdict ${st.verdict === "READY*" ? "READYx" : esc(st.verdict)}">${esc(st.name)} — ${esc(st.verdict)}</div>
+        ${st.phases.map((ph) => `
+          <div class="gphase">${esc(ph.phase)}</div>
+          ${ph.gates.map((g) => `
+            <div class="gate"><span class="gst ${esc(g.status)}">${esc(g.status)}</span>
+              <span>${esc(g.name)}${g.status !== "PASS" ? ` <span style="color:var(--dim)">— ${esc(g.detail)}</span>` : ""}</span></div>`).join("")}`).join("")}
+      </div>`).join("") + `</div></div>`;
+}
+
+async function showFixPreview() {
+  const body = $("fixBody");
+  body.textContent = "Working…";
+  $("fixOverlay").classList.add("show");
+  try {
+    const res = await api("/api/fix-preview", { target: report.root });
+    body.textContent = "";
+    if (!res.edits.length) {
+      body.appendChild(Object.assign(document.createElement("p"), { textContent: "Nothing here has a safe automatic fix." }));
+    }
+    res.edits.forEach((e) => {
+      const h = document.createElement("div");
+      h.style.cssText = "font-weight:600;margin-top:6px";
+      h.textContent = e.file;
+      body.appendChild(h);
+      const ul = document.createElement("ul");
+      ul.className = "notes";
+      e.changes.forEach((c) => { const li = document.createElement("li"); li.textContent = `[${c.id}] ${c.note}`; ul.appendChild(li); });
+      body.appendChild(ul);
+      const pre = document.createElement("pre");
+      pre.className = "diff";
+      pre.textContent = e.diff;   // file content — always as text, never HTML
+      body.appendChild(pre);
+    });
+    if (res.edits.length) {
+      const cmd = document.createElement("p");
+      cmd.className = "hint";
+      cmd.textContent = "To write these changes, run:  " + res.command;
+      body.appendChild(cmd);
+    }
+  } catch (err) {
+    body.textContent = "Fix preview failed: " + err.message;
+  }
+}
+
+async function downloadHtml() {
+  try {
+    const res = await api("/api/html", { target: report.root });
+    download("playgate-report.html", res.html, "text/html");
+  } catch (err) {
+    toast("HTML report failed: " + err.message);
   }
 }
 
@@ -341,6 +447,9 @@ function renderResults() {
         <p class="blurb">${esc(BAND_BLURB[band] || "")}</p>
       </div>
     </div>
+    ${report.history ? `<div class="history">Since the last scan of this project (${esc(new Date(report.history.when).toLocaleString())}):
+      <b>${report.history.newSet.size}</b> new finding(s), <b>${report.history.fixed}</b> fixed.</div>` : ""}
+    ${renderRelease()}
 
     <div class="toolbar">
       <div class="tabs">
@@ -356,6 +465,8 @@ function renderResults() {
       ${listingMissing ? '<button class="small" id="btnInit">Create playgate.toml</button>' : ""}
       <button class="small" id="btnDlJson">JSON</button>
       <button class="small" id="btnDlMd">report.md</button>
+      <button class="small" id="btnDlHtml">HTML report</button>
+      <button class="small" id="btnFix">Fix preview</button>
     </div>
 
     <div id="findingList"></div>`;
@@ -375,8 +486,10 @@ function renderResults() {
   $("sevFilter").addEventListener("change", (e) => { view.minSeverity = e.target.value; renderFindings(); });
   $("searchBox").addEventListener("input", (e) => { view.search = e.target.value; renderFindings(); });
   $("btnDlJson").addEventListener("click", () => download("playgate-report.json",
-    JSON.stringify({ ...report, markdown: undefined }, null, 2), "application/json"));
+    JSON.stringify({ ...report, markdown: undefined, history: undefined }, null, 2), "application/json"));
   $("btnDlMd").addEventListener("click", () => download("playgate-report.md", report.markdown, "text/markdown"));
+  $("btnDlHtml").addEventListener("click", downloadHtml);
+  $("btnFix").addEventListener("click", showFixPreview);
   const init = $("btnInit");
   if (init) init.addEventListener("click", createListing);
 
@@ -408,6 +521,7 @@ function renderFindings() {
     <div class="finding" style="border-left-color:${SEV_COLOR[f.severity]}" data-i="${i}">
       <div class="fhead">
         <span class="badge" style="background:${SEV_COLOR[f.severity]}${f.severity === "MEDIUM" ? ";color:#3b2a00" : ""}">${f.severity}</span>
+        ${report.history && report.history.newSet.has(f.fingerprint) ? '<span class="newbadge">NEW</span>' : ""}
         <span class="ftitle">${esc(f.title)}</span>
         <span class="floc" title="${esc(f.location)}">${esc(f.location)}</span>
       </div>
@@ -553,6 +667,7 @@ $("browsePath").addEventListener("keydown", (e) => {
   if (e.key === "Enter") navigateTo(e.target.value.trim());
 });
 $("btnRules").addEventListener("click", openRules);
+$("btnFixClose").addEventListener("click", () => $("fixOverlay").classList.remove("show"));
 $("btnRulesClose").addEventListener("click", () => $("rulesOverlay").classList.remove("show"));
 document.querySelectorAll(".overlay").forEach((ov) =>
   ov.addEventListener("click", (e) => { if (e.target === ov) ov.classList.remove("show"); }));

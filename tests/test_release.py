@@ -78,7 +78,7 @@ def test_ios_project_gets_app_store_only(tmp_path: Path) -> None:
 
 def test_ios_project_ready_with_manifest(tmp_path: Path) -> None:
     out = to_release_checklist(scan(_ios(tmp_path, manifest=True)))
-    assert "VERDICT: READY " in out or "VERDICT: READY\n" in out or "VERDICT: READY   " in out
+    assert "VERDICT: READY   " in out  # READY, not READY* — nothing needs more information
 
 
 def test_store_all_and_release_json(gradle_project) -> None:

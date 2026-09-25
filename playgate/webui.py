@@ -19,7 +19,7 @@ from pathlib import Path
 
 from . import __version__
 from .collect import LISTING_FILENAMES, detect_kind
-from .report import to_json, to_markdown
+from .report import release_json, to_json, to_markdown
 from .rules import all_rules
 from .scan import scan
 
@@ -101,21 +101,58 @@ def _api_browse(payload: dict) -> tuple[int, dict]:
     }
 
 
-def _api_scan(payload: dict) -> tuple[int, dict]:
+def _scan_payload(payload: dict):
+    """Validate a {target, listing} request and run the scan.
+    Returns (report, None) or (None, (status, error-body))."""
     raw = str(payload.get("target") or "").strip()
     if not raw:
-        return 400, {"error": "no target given"}
+        return None, (400, {"error": "no target given"})
     target = Path(raw).expanduser()
     if not target.exists():
-        return 400, {"error": f"no such path: {target}"}
+        return None, (400, {"error": f"no such path: {target}"})
     listing = str(payload.get("listing") or "").strip()
     try:
-        report = scan(target, listing_path=Path(listing) if listing else None)
+        return scan(target, listing_path=Path(listing) if listing else None), None
     except (ValueError, RuntimeError) as exc:
-        return 400, {"error": str(exc)}
+        return None, (400, {"error": str(exc)})
+
+
+def _api_scan(payload: dict) -> tuple[int, dict]:
+    report, err = _scan_payload(payload)
+    if err:
+        return err
     data = json.loads(to_json(report))
     data["markdown"] = to_markdown(report)
+    data["release"] = release_json(report)
     return 200, data
+
+
+def _api_html(payload: dict) -> tuple[int, dict]:
+    from .html_report import to_html
+
+    report, err = _scan_payload(payload)
+    if err:
+        return err
+    return 200, {"html": to_html(report)}
+
+
+def _api_fix_preview(payload: dict) -> tuple[int, dict]:
+    """Dry run only: the UI never writes files. Applying stays an explicit CLI step."""
+    from . import fix
+
+    report, err = _scan_payload(payload)
+    if err:
+        return err
+    edits, skipped = fix.plan(report)
+    return 200, {
+        "edits": [
+            {"file": e.relpath.replace("\\", "/"), "diff": e.diff(),
+             "changes": [{"id": i, "note": n} for i, n in e.applied]}
+            for e in edits
+        ],
+        "skipped": [{"id": f.id, "where": f.location.render()} for f in skipped],
+        "command": f'playgate fix "{report.root}" --apply',
+    }
 
 
 def _api_init(payload: dict) -> tuple[int, dict]:
@@ -210,7 +247,10 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"error": "expected a JSON object"}, HTTPStatus.BAD_REQUEST)
             return
 
-        routes = {"/api/browse": _api_browse, "/api/scan": _api_scan, "/api/init": _api_init}
+        routes = {
+            "/api/browse": _api_browse, "/api/scan": _api_scan, "/api/init": _api_init,
+            "/api/html": _api_html, "/api/fix-preview": _api_fix_preview,
+        }
         handler = routes.get(self.path)
         if handler is None:
             self._json({"error": "not found"}, HTTPStatus.NOT_FOUND)
