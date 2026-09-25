@@ -94,7 +94,7 @@ def to_text(report: Report, color: bool = True) -> str:
     lines.append("")
     scope = (
         "standards: findings map to OWASP MASVS · MASTG · Mobile Top 10 (2024) · CWE. "
-        "Not a certified / DAST / SCA scan; a clean report is 'not tested', not 'secure'."
+        "Not a certified / DAST scan; SCA is a small offline advisory list. A clean report is 'not tested', not 'secure'."
     )
     lines.append(f"{DIM}{scope}{RESET}" if color else scope)
     lines.append("")
@@ -257,6 +257,8 @@ def _play_gates(report: Report) -> list[tuple[str, list[tuple[str, str, str]]]]:
              "insecure comms"),
             ("Exported components guarded", _gate(present, {"AND-EXPORTED-OPEN", "AND-EXPORTED-UNSET"}),
              "any app can reach them otherwise"),
+            ("No known-vulnerable dependencies", _gate(present, {"DEP-VULNERABLE"}),
+             "upgrade the flagged libraries (offline advisory list)"),
         ]),
     ]
 

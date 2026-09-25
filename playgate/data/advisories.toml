@@ -1,0 +1,128 @@
+# Known-vulnerable dependency versions, checked offline.
+#
+# This is a deliberately small, curated list of widely-exploited or
+# high-impact advisories — not a CVE database. Each entry names the fixed
+# version(s); a dependency is flagged when its version is below the fix for
+# its own release line. Add entries only with a verified advisory reference.
+#
+# fixed: one version per maintained line. A version is vulnerable when it is
+#   below the fix sharing its major.minor (or major, if no minor-line fix
+#   exists), or below the lowest fix overall.
+# introduced (optional): first affected version; older versions are skipped.
+
+version = "2026.09"
+
+[[maven]]
+package = "org.apache.logging.log4j:log4j-core"
+introduced = "2.0"
+fixed = ["2.3.2", "2.12.4", "2.17.1"]
+severity = "critical"
+id = "CVE-2021-44228"
+summary = "Log4Shell — remote code execution via JNDI lookups in logged strings (also CVE-2021-45046/45105/44832)."
+
+[[maven]]
+package = "org.apache.commons:commons-text"
+introduced = "1.5"
+fixed = ["1.10.0"]
+severity = "critical"
+id = "CVE-2022-42889"
+summary = "Text4Shell — StringSubstitutor script/dns/url lookups allow code execution."
+
+[[maven]]
+package = "commons-collections:commons-collections"
+fixed = ["3.2.2"]
+severity = "critical"
+id = "CVE-2015-7501"
+summary = "InvokerTransformer deserialization gadget — remote code execution on untrusted object streams."
+
+[[maven]]
+package = "org.yaml:snakeyaml"
+fixed = ["2.0"]
+severity = "high"
+id = "CVE-2022-1471"
+summary = "Constructor deserialization of untrusted YAML can instantiate arbitrary types."
+
+[[maven]]
+package = "com.google.code.gson:gson"
+fixed = ["2.8.9"]
+severity = "high"
+id = "CVE-2022-25647"
+summary = "Deserialization of untrusted input can cause denial of service."
+
+[[maven]]
+package = "com.fasterxml.jackson.core:jackson-databind"
+fixed = ["2.12.7.1", "2.13.4.2"]
+severity = "high"
+id = "CVE-2022-42003"
+summary = "Deeply nested arrays exhaust resources during deserialization (also CVE-2022-42004)."
+
+[[maven]]
+package = "com.google.protobuf:protobuf-java"
+fixed = ["3.16.3", "3.19.6", "3.20.3", "3.21.7"]
+severity = "high"
+id = "CVE-2022-3171"
+summary = "Parsing crafted messages causes excessive GC pauses — denial of service."
+
+[[maven]]
+package = "com.thoughtworks.xstream:xstream"
+fixed = ["1.4.20"]
+severity = "high"
+id = "CVE-2022-41966"
+summary = "Stack overflow via recursive collections in deserialised input."
+
+[[maven]]
+package = "org.jsoup:jsoup"
+fixed = ["1.15.3"]
+severity = "medium"
+id = "CVE-2022-36033"
+summary = "Cleaner can pass javascript: URLs through, enabling XSS."
+
+[[npm]]
+package = "lodash"
+fixed = ["4.17.21"]
+severity = "high"
+id = "CVE-2021-23337"
+summary = "Command injection via the template function."
+
+[[npm]]
+package = "minimist"
+fixed = ["1.2.6"]
+severity = "critical"
+id = "CVE-2021-44906"
+summary = "Prototype pollution via crafted arguments."
+
+[[npm]]
+package = "jsonwebtoken"
+fixed = ["9.0.0"]
+severity = "high"
+id = "CVE-2022-23529"
+summary = "Insecure key handling in verify() (also CVE-2022-23539/23540/23541)."
+
+[[npm]]
+package = "axios"
+introduced = "0.8.1"
+fixed = ["0.28.0", "1.6.0"]
+severity = "medium"
+id = "CVE-2023-45857"
+summary = "XSRF-TOKEN is sent to any host, leaking it to third parties."
+
+[[npm]]
+package = "node-fetch"
+fixed = ["2.6.7", "3.1.1"]
+severity = "high"
+id = "CVE-2022-0235"
+summary = "Cookie/Authorization headers forwarded on cross-origin redirects."
+
+[[npm]]
+package = "ws"
+fixed = ["5.2.4", "6.2.3", "7.5.10", "8.17.1"]
+severity = "high"
+id = "CVE-2024-37890"
+summary = "Request with many headers crashes the server — denial of service."
+
+[[npm]]
+package = "semver"
+fixed = ["5.7.2", "6.3.1", "7.5.2"]
+severity = "medium"
+id = "CVE-2022-25883"
+summary = "Regular-expression denial of service in range parsing."

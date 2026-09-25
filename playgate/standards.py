@@ -119,6 +119,8 @@ STANDARDS_MAP: dict[str, Standards] = {
     "TAINT-CMD": Standards(cwe=(78,), masvs=("MASVS-CODE",), owasp_mobile="M4"),
     "TAINT-PATH": Standards(cwe=(22,), masvs=("MASVS-STORAGE",), owasp_mobile="M4"),
     "TAINT-INTENT-REDIRECT": Standards(cwe=(940,), masvs=("MASVS-PLATFORM",), owasp_mobile="M8"),
+    # Dependencies (offline SCA)
+    "DEP-VULNERABLE": Standards(cwe=(1395,), masvs=("MASVS-CODE",), owasp_mobile="M2"),
     # Unity
     "UNI-MONO-BACKEND": Standards(cwe=(656,), masvs=("MASVS-RESILIENCE",), owasp_mobile="M7"),
     "UNI-PLAYERPREFS-ECONOMY": _CLIENT_TRUST,
@@ -168,7 +170,7 @@ SCOPE = {
     "not": [
         "Not a certified/accredited assessment — it does not claim MASVS L1/L2 verification.",
         "Not DAST — it does not run the app, so no runtime behaviour is covered.",
-        "Not SCA/CVE — it does not scan dependencies for known CVEs.",
+        "Offline SCA only — declared versions are checked against a small bundled advisory list, not a live CVE database.",
         "A fixed, finite rule set: absence of a finding is not evidence of security "
         "(equivalent to MASVS 'not tested', not 'pass').",
     ],
