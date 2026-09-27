@@ -1,12 +1,12 @@
-# playgate benchmark — v0.2.0
+# playgate benchmark — v0.3.0
 
 Synthetic corpus modelled on the vulnerability classes of well-known intentionally-insecure
 apps. Written alongside the rules, so these numbers are a **regression guarantee**, not an
 independent accuracy claim — see README for the external benchmark procedure.
 
-- **Recall:** 87/87 expected findings detected (100%)
+- **Recall:** 100/100 expected findings detected (100%)
 - **False positives on benign projects:** 0
-- **Rule coverage:** 50/50 rules exercised
+- **Rule coverage:** 60/60 rules exercised
 
 | Case | Modelled on | Expected | Detected | Result |
 | --- | --- | --- | --- | --- |
@@ -28,6 +28,12 @@ independent accuracy claim — see README for the external benchmark procedure.
 | ios-app | App Store review: ATS, purpose strings, privacy manifest, UIWebView, ATT | 6 | 6 | ✓ |
 | vulnerable-deps | Supply chain: Log4Shell, vulnerable npm transitive | 1 | 1 | ✓ |
 | compiled-apk | Compiled package: API usage read from DEX | 9 | 9 | ✓ |
+| game-native | Native Android game: client-side economy, unverified IAP, loot boxes, kids ads | 8 | 8 | ✓ |
+| game-flutter | Flutter/Flame game: currency in shared_preferences | 1 | 1 | ✓ |
+| game-godot-save | Godot game: currency in a ConfigFile save | 1 | 1 | ✓ |
+| app-webview-wrapper | Play Minimum functionality / Webview spam | 1 | 1 | ✓ |
+| app-login-health | Play App access + Health Connect declaration | 2 | 2 | ✓ |
+| clean-game | Game done right: server-verified IAP, integrity, odds disclosed | 0 (benign) | 0 | ✓ clean |
 | clean-android | Well-configured app | 0 (benign) | 0 | ✓ clean |
 | clean-safe-patterns | Safe versions of every flagged pattern | 0 (benign) | 0 | ✓ clean |
 | clean-cloud | Locked-down Firebase rules and Supabase with RLS | 0 (benign) | 0 | ✓ clean |

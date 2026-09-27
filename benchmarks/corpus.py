@@ -299,7 +299,82 @@ def cases() -> list[Case]:
             "DEX-GLOBAL-HOSTNAME-VERIFIER", "DEX-WEAK-CIPHER", "DEX-WEAK-HASH", "DEX-ADID-READ",
             "AND-DEBUGGABLE"}, package="apk"),
 
+        # ------------------------------------------------------------ game profile
+        Case("game-native", "Native Android game: client-side economy, unverified IAP, loot boxes, kids ads",
+             _android(gradle=CLEAN_GRADLE + 'dependencies { implementation "com.badlogicgames.gdx:gdx:1.12.1" }\n',
+                      listing=CLEAN_LISTING + "target_audience_children = true\n", **{
+                 KT + "Economy.kt": (
+                     'fun save() { prefs.edit().putInt("coins", coins).apply() }\n'
+                     "fun openLootBox(): Item = table.random()\n"
+                     "fun enableGodMode() { hp = Int.MAX_VALUE }\n"),
+                 KT + "Store.kt": (
+                     "class Store : PurchasesUpdatedListener {\n"
+                     "  override fun onPurchasesUpdated(r: BillingResult, p: List<Purchase>?) {\n"
+                     "    p?.forEach { grant(it.products); client.acknowledgePurchase(ack(it)) }\n  }\n}\n"),
+                 KT + "Social.kt": (
+                     "fun start() { MobileAds.initialize(ctx); FirebaseAuth.getInstance() }\n"
+                     "fun post(score: Long) { leaderboardsClient.submitScore(BOARD, score) }\n"),
+             }),
+             {"GAME-NO-CATEGORY", "GAME-LOCAL-CURRENCY", "GAME-IAP-NO-SERVER-CHECK", "GAME-LOOTBOX-ODDS",
+              "GAME-ADS-CHILDREN", "GAME-SCORE-NO-INTEGRITY", "GAME-CHEAT-LEFTOVER", "PLY-REVIEW-ACCESS"}),
+
+        Case("game-flutter", "Flutter/Flame game: currency in shared_preferences", {
+            "pubspec.yaml": "name: runner\ndependencies:\n  flame: ^1.18.0\n  shared_preferences: ^2.2.0\n",
+            "lib/save.dart": "Future<void> save(SharedPreferences prefs) => prefs.setInt('gems', gems);\n",
+            "android/settings.gradle": "include ':app'\n",
+            "android/app/build.gradle": CLEAN_GRADLE,
+            "android/app/src/main/AndroidManifest.xml":
+                MANIFEST_HEAD + '<application android:allowBackup="false" android:appCategory="game"/>\n</manifest>\n',
+            "playgate.toml": CLEAN_LISTING,
+        }, {"GAME-LOCAL-CURRENCY"}),
+
+        Case("game-godot-save", "Godot game: currency in a ConfigFile save", {
+            "project.godot": 'config_version=5\n[application]\nconfig/name="G"\n',
+            "export_presets.cfg": ('[preset.0]\nname="Android"\nplatform="Android"\n[preset.0.options]\n'
+                                   'keystore/release="/keys/rel.jks"\n'),
+            "scripts/save.gd": 'func save():\n\tcfg.set_value("player", "gold", gold)\n\tcfg.save("user://save.cfg")\n',
+        }, {"GAME-LOCAL-CURRENCY"}),
+
+        # ------------------------------------------------------------ app profile
+        Case("app-webview-wrapper", "Play Minimum functionality / Webview spam",
+             _android(manifest_body=(
+                 '<application android:allowBackup="false">\n'
+                 '  <activity android:name=".Main" android:exported="true"><intent-filter>\n'
+                 '    <action android:name="android.intent.action.MAIN"/>\n'
+                 '    <category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>\n'
+                 "</application>\n"), **{
+                 KT + "Main.kt": (
+                     "class Main : Activity() {\n  override fun onCreate(b: Bundle?) {\n"
+                     "    super.onCreate(b)\n    val w = WebView(this)\n"
+                     '    w.loadUrl("https://shop.bench.example")\n    setContentView(w)\n  }\n}\n'),
+             }),
+             {"APP-WEBVIEW-WRAPPER"}),
+
+        Case("app-login-health", "Play App access + Health Connect declaration",
+             _android(manifest_body=(
+                 '<uses-permission android:name="android.permission.health.READ_STEPS"/>\n'
+                 '<application android:allowBackup="false">\n'
+                 '  <activity android:name=".LoginActivity" android:exported="false"/>\n'
+                 "</application>\n"),
+                 listing=CLEAN_LISTING + 'data_safety_declared = ["health_fitness"]\n'),
+             {"PLY-REVIEW-ACCESS", "APP-HEALTH-DECLARATION"}),
+
         # ============================================================ benign
+        Case("clean-game", "Game done right: server-verified IAP, integrity, odds disclosed", _android(
+            gradle=CLEAN_GRADLE + 'dependencies { implementation "com.badlogicgames.gdx:gdx:1.12.1" }\n',
+            manifest_body='<application android:allowBackup="false" android:appCategory="game"/>\n',
+            listing=CLEAN_LISTING + "discloses_loot_box_odds = true\nreview_access_provided = true\n", **{
+                KT + "Store.kt": (
+                    "override fun onPurchasesUpdated(r: BillingResult, p: List<Purchase>?) {\n"
+                    "  p?.forEach { api.verifyPurchase(it.purchaseToken) }\n}\n"),
+                KT + "Loot.kt": "fun openLootBox() = server.roll()\n",
+                KT + "Scores.kt": (
+                    "val token = integrityManager.requestIntegrityToken(req)\n"
+                    "fun post(s: Long) = leaderboardsClient.submitScore(BOARD, s)\n"
+                    "fun login() = FirebaseAuth.getInstance()\n"),
+            }), benign=True),
+
+
         Case("clean-android", "Well-configured app", _android(**{
             KT + "Repo.kt": (
                 'private val base = "https://api.bench.example/v1"\n'

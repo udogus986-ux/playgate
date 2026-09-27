@@ -51,6 +51,17 @@ data_safety_declared = []
 developer_account_type = "personal"   # personal | organization
 first_release = false                 # first production release from this account
 
+# Game or app. Leave unset to let playgate detect it (engine, appCategory, deps).
+# app_type = "game"
+
+# Play Console → App content → App access: a working test account / instructions
+# for reviewers are filled in (needed whenever the app has a login).
+review_access_provided = false
+
+# Games only: odds of randomized paid items (loot boxes, gacha) are shown to the
+# player before purchase.
+# discloses_loot_box_odds = true
+
 # Consciously-accepted findings. Each entry is a rule id, optionally scoped to a
 # path substring so it only silences that one place. Run `playgate rules` for ids.
 #   ignore = ["CODE-HTTP-URL:src/debug", "SEC-GENERIC:app/BuildConfig.kt"]
@@ -93,6 +104,8 @@ def _build_parser() -> argparse.ArgumentParser:
         help="exit 1 when a finding at or above this severity exists (default: high)",
     )
     scan_p.add_argument("--no-color", action="store_true", help="disable ANSI colour")
+    scan_p.add_argument("--profile", choices=("auto", "game", "app"), default="auto",
+                       help="analyse as a game or an app (default: detect)")
 
     rel_p = sub.add_parser(
         "release", help="Google Play submission dry-run: every upload gate as PASS/FAIL",
@@ -102,12 +115,16 @@ def _build_parser() -> argparse.ArgumentParser:
     rel_p.add_argument("--no-color", action="store_true", help="disable ANSI colour")
     rel_p.add_argument("--store", choices=("auto", "play", "appstore", "all"), default="auto",
                        help="which store to check (default: whichever the project ships to)")
+    rel_p.add_argument("--profile", choices=("auto", "game", "app"), default="auto",
+                       help="analyse as a game or an app (default: detect)")
 
     fix_p = sub.add_parser("fix", help="propose (or --apply) fixes for mechanical findings")
     fix_p.add_argument("target", nargs="?", default=".", help="project directory (default: .)")
     fix_p.add_argument("--apply", action="store_true", help="write the changes (default: show a diff)")
     fix_p.add_argument("--only", default="", help="comma-separated finding ids to fix, e.g. AND-BACKUP")
     fix_p.add_argument("--listing", type=Path, default=None, help="path to a playgate.toml/.json")
+    fix_p.add_argument("--profile", choices=("auto", "game", "app"), default="auto",
+                       help="analyse as a game or an app (default: detect)")
 
     probe_p = sub.add_parser("probe", help="generate adb commands to dynamically test exported components")
     probe_p.add_argument("target", nargs="?", default=".", help="project directory, .apk or .aab")
@@ -168,7 +185,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
             return 2
 
     try:
-        report = scan(target, listing_path=args.listing, baseline=baseline)
+        report = scan(target, listing_path=args.listing, baseline=baseline, profile=args.profile)
     except (ValueError, RuntimeError) as exc:
         print(f"playgate: {exc}", file=sys.stderr)
         return 2
@@ -217,7 +234,7 @@ def _cmd_release(args: argparse.Namespace) -> int:
         print(f"playgate: no such path: {target}", file=sys.stderr)
         return 2
     try:
-        report = scan(target, listing_path=args.listing)
+        report = scan(target, listing_path=args.listing, profile=args.profile)
     except (ValueError, RuntimeError) as exc:
         print(f"playgate: {exc}", file=sys.stderr)
         return 2
@@ -239,7 +256,7 @@ def _cmd_fix(args: argparse.Namespace) -> int:
         print("playgate: fix works on a project directory, not a compiled package", file=sys.stderr)
         return 2
     try:
-        report = scan(target, listing_path=args.listing)
+        report = scan(target, listing_path=args.listing, profile=args.profile)
     except (ValueError, RuntimeError) as exc:
         print(f"playgate: {exc}", file=sys.stderr)
         return 2
@@ -262,7 +279,7 @@ def _cmd_fix(args: argparse.Namespace) -> int:
         print("\nDry run. Re-run with --apply to write these changes.")
         return 0
     fix.apply(edits)
-    after = scan(target, listing_path=args.listing)
+    after = scan(target, listing_path=args.listing, profile=args.profile)
     remaining = {f.fingerprint() for f in after.findings}
     fixed = [f for f in report.findings if f.id in fix.FIXERS and f.fingerprint() not in remaining]
     print(f"\nwrote {len(edits)} file(s); {len(fixed)} finding(s) resolved. Review with `git diff`.")

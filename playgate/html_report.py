@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 
 from . import __version__
 from .models import Report
+from .profile import profile_areas
 from .report import BAND_BLURB, _finding_json, release_json
 from .standards import SCOPE
 
@@ -73,6 +74,12 @@ var counts=el("div");SEV.forEach(function(s){counts.appendChild(el("span",{"clas
 var risk=el("div",{},[el("div",{"class":"big",text:D.rejection_band+"  "+D.rejection_score+"/100"}),el("div",{style:"color:var(--dim);font-size:13px",text:D.blurb})]);
 app.appendChild(el("div",{"class":"grid"},[el("div",{"class":"card"},[el("h2",{text:"Findings",style:"margin-top:0"}),counts]),
  el("div",{"class":"card"},[el("h2",{text:"Google Play rejection risk",style:"margin-top:0"}),risk])]));
+app.appendChild(el("h2",{text:(D.profile==="game"?"Game":"App")+" risk areas"}));
+app.appendChild(el("div",{"class":"meta",text:"profile: "+D.profile+" — "+D.profile_signals.join("; ")}));
+var ar=el("div",{"class":"card"});D.areas.forEach(function(a){ar.appendChild(el("div",{"class":"gate"},[
+ el("span",{"class":"st "+(a.findings.length?"FAIL":"PASS"),text:a.findings.length?a.findings.length+" issue(s)":"clean"}),
+ el("span",{text:a.area+(a.findings.length?" — "+a.findings.filter(function(v,i,s){return s.indexOf(v)===i;}).join(", "):"")})]));});
+app.appendChild(ar);
 if(D.release.length){app.appendChild(el("h2",{text:"Release readiness"}));
  var g=el("div",{"class":"grid"});D.release.forEach(function(st){var c=el("div",{"class":"card"});
   c.appendChild(el("div",{"class":"verdict "+(st.verdict==="NO-GO"?"FAIL":"PASS"),text:st.name+" — "+st.verdict}));
@@ -116,6 +123,9 @@ def to_html(report: Report) -> str:
         "root": report.root,
         "kind": report.kind.value,
         "platforms": report.platforms,
+        "profile": report.profile,
+        "profile_signals": report.profile_signals,
+        "areas": profile_areas(report),
         "version": __version__,
         "generated": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
         "counts": report.counts(),

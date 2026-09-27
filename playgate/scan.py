@@ -39,8 +39,9 @@ def scan(
     min_severity: Severity = Severity.INFO,
     baseline: set[str] | None = None,
     today: date | None = None,
+    profile: str = "auto",
 ) -> Report:
-    ctx = build_context(target, listing_path=listing_path)
+    ctx = build_context(target, listing_path=listing_path, profile=profile)
     findings, errors = run_all(ctx)
 
     notes = list(ctx.notes) + errors
@@ -82,6 +83,8 @@ def scan(
         notes=notes,
         inputs=sorted(set(inputs)),
         platforms=_platforms(ctx),
+        profile=ctx.profile,
+        profile_signals=ctx.profile_signals,
     )
 
 

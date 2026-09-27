@@ -111,8 +111,11 @@ def _scan_payload(payload: dict):
     if not target.exists():
         return None, (400, {"error": f"no such path: {target}"})
     listing = str(payload.get("listing") or "").strip()
+    profile = str(payload.get("profile") or "auto")
+    if profile not in {"auto", "game", "app"}:
+        return None, (400, {"error": f"unknown profile: {profile}"})
     try:
-        return scan(target, listing_path=Path(listing) if listing else None), None
+        return scan(target, listing_path=Path(listing) if listing else None, profile=profile), None
     except (ValueError, RuntimeError) as exc:
         return None, (400, {"error": str(exc)})
 

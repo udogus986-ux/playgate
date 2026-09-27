@@ -61,6 +61,8 @@ TOOLS = [
                     "enum": ["json", "markdown"],
                     "description": "json (default) for structured reasoning, markdown for a report.",
                 },
+                "profile": {"type": "string", "enum": ["auto", "game", "app"],
+                            "description": "analyse as a game or an app (default: detect)"},
             },
             "required": ["path"],
         },
@@ -81,6 +83,7 @@ TOOLS = [
                 "listing_path": {"type": "string"},
                 "store": {"type": "string", "enum": ["auto", "play", "appstore", "all"],
                           "description": "default auto: whichever stores the project ships to"},
+                "profile": {"type": "string", "enum": ["auto", "game", "app"]},
             },
             "required": ["path"],
         },
@@ -152,6 +155,7 @@ def _tool_scan(args: dict) -> str:
         target,
         listing_path=Path(listing) if listing else None,
         min_severity=min_sev,
+        profile=str(args.get("profile") or "auto"),
     )
     if args.get("format") == "markdown":
         return to_markdown(report)
@@ -166,7 +170,8 @@ def _tool_release_check(args: dict) -> str:
     if not target.exists():
         raise ValueError(f"no such path: {target}")
     listing = args.get("listing_path")
-    report = scan(target, listing_path=Path(listing) if listing else None)
+    report = scan(target, listing_path=Path(listing) if listing else None,
+                  profile=str(args.get("profile") or "auto"))
     return to_release_checklist(report, store=str(args.get("store") or "auto"))
 
 

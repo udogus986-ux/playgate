@@ -202,6 +202,11 @@
     <div class="targetrow">
       <input type="text" id="target" placeholder="Path to a project folder, .apk or .aab…" spellcheck="false">
       <button id="btnBrowse">Browse…</button>
+      <select id="profileSel" title="Analyse as">
+        <option value="auto">Auto-detect</option>
+        <option value="game">Game</option>
+        <option value="app">App</option>
+      </select>
       <button class="primary" id="btnScan">Scan</button>
     </div>
     <div class="hint" id="hint">Pick a project folder (Gradle, Unity, Godot) or a compiled package, then press Scan.</div>
@@ -313,7 +318,7 @@ async function runScan() {
   btn.disabled = true;
   btn.innerHTML = '<span class="spin"></span>Scanning…';
   try {
-    report = await api("/api/scan", { target });
+    report = await api("/api/scan", { target, profile: $("profileSel").value });
     report.history = compareWithLast(report);
     view = { category: "all", minSeverity: "INFO", search: "" };
     renderResults();
@@ -342,6 +347,21 @@ function compareWithLast(rep) {
     newSet: new Set(prints.filter((p) => !before.has(p))),
     fixed: prev.prints.filter((p) => !now.has(p)).length,
   };
+}
+
+function renderAreas() {
+  const p = report.profile;
+  if (!p || !p.areas) return "";
+  const title = p.type === "game" ? "Game risk areas" : "App risk areas";
+  return `<div class="section"><p class="sectionhead">${title}</p>
+    <div class="card">
+      <div class="hint" style="margin:0 0 8px">profile <b>${esc(p.type)}</b> — ${esc(p.signals.join("; "))}</div>
+      ${p.areas.map((a) => {
+        const ids = [...new Set(a.findings)];
+        return `<div class="gate"><span class="gst ${a.findings.length ? "FAIL" : "PASS"}">${a.findings.length ? a.findings.length + " issue(s)" : "clean"}</span>
+          <span>${esc(a.area)}${ids.length ? ` <span style="color:var(--dim)">— ${esc(ids.join(", "))}</span>` : ""}</span></div>`;
+      }).join("")}
+    </div></div>`;
 }
 
 function renderRelease() {
@@ -449,6 +469,7 @@ function renderResults() {
     </div>
     ${report.history ? `<div class="history">Since the last scan of this project (${esc(new Date(report.history.when).toLocaleString())}):
       <b>${report.history.newSet.size}</b> new finding(s), <b>${report.history.fixed}</b> fixed.</div>` : ""}
+    ${renderAreas()}
     ${renderRelease()}
 
     <div class="toolbar">

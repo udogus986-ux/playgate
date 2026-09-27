@@ -217,6 +217,12 @@ class ListingMeta:
     uses_play_billing: bool | None = None
     developer_account_type: str | None = None  # personal | organization
     first_release: bool | None = None
+    # Game vs app. Overrides auto-detection: "game" | "app".
+    app_type: str | None = None
+    # Play "App access": reviewer login instructions/credentials were provided.
+    review_access_provided: bool | None = None
+    # Games: odds of randomized paid items (loot boxes / gacha) shown before purchase.
+    discloses_loot_box_odds: bool | None = None
     # Findings the developer has consciously accepted. Each entry is a rule id,
     # optionally followed by ":<path-substring>" to scope it.
     ignore: list[str] = field(default_factory=list)
@@ -261,6 +267,9 @@ class ScanContext:
     # mapped to the dex file they came from.
     api_refs: dict[str, str] = field(default_factory=dict)
     dex_crypto: set[str] = field(default_factory=set)  # weak cipher/digest names in DEX
+    # "game" or "app", and the evidence that decided it.
+    profile: str = "app"
+    profile_signals: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
 
     def files_with_suffix(self, *suffixes: str) -> Iterable[SourceFile]:
@@ -285,6 +294,8 @@ class Report:
     inputs: list[str] = field(default_factory=list)
     # Which stores the project ships to: "android" and/or "ios".
     platforms: list[str] = field(default_factory=list)
+    profile: str = "app"                 # "game" | "app"
+    profile_signals: list[str] = field(default_factory=list)
 
     def sorted_findings(self) -> list[Finding]:
         return sorted(self.findings, key=lambda f: f.sort_key())

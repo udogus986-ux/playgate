@@ -47,6 +47,8 @@ TEXT_SUFFIXES = {
     # iOS / App Store: Swift/Obj-C, Apple privacy manifest, entitlements,
     # the Xcode project file.
     ".swift", ".m", ".mm", ".h", ".xcprivacy", ".entitlements", ".pbxproj", ".podspec",
+    # Flutter / Dart application code.
+    ".dart",
 }
 
 MAX_FILE_BYTES = 2 * 1024 * 1024
@@ -393,7 +395,7 @@ _LIST_FIELDS = {"collects_data", "data_safety_declared", "ignore"}
 _BOOL_FIELDS = {
     "account_creation", "in_app_account_deletion", "uses_ads",
     "target_audience_children", "sells_digital_goods", "uses_play_billing",
-    "first_release",
+    "first_release", "review_access_provided", "discloses_loot_box_odds",
 }
 
 
@@ -474,7 +476,7 @@ def find_listing(root: Path) -> ListingMeta | None:
 # Entry point
 # --------------------------------------------------------------------------
 
-def build_context(root: Path, listing_path: Path | None = None) -> ScanContext:
+def build_context(root: Path, listing_path: Path | None = None, profile: str = "auto") -> ScanContext:
     root = root.resolve()
     kind = detect_kind(root)
 
@@ -516,4 +518,8 @@ def build_context(root: Path, listing_path: Path | None = None) -> ScanContext:
             ctx.listing.source_path = str(Path(ctx.listing.source_path).relative_to(base))
         except ValueError:
             pass
+
+    from .profile import detect_profile
+
+    ctx.profile, ctx.profile_signals = detect_profile(ctx, override=profile)
     return ctx

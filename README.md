@@ -55,6 +55,7 @@ playgate scan . --format md -o report.md
 playgate scan . --format json        # for CI or other tools
 playgate scan . --format sarif       # upload to GitHub code scanning
 playgate scan . --baseline prev.json # show only findings new since prev.json
+playgate scan . --profile game      # force the game (or app) analysis
 playgate scan . --format html -o report.html   # one shareable, filterable file
 playgate release .                   # Play / App Store submission dry-run (GO / NO-GO)
 playgate fix .                       # show fixes for mechanical findings (--apply to write)
@@ -65,6 +66,22 @@ playgate rules                       # list every check
 playgate ui                          # open the local web interface
 playgate mcp                         # run as an MCP server (see "Dynamic agents")
 ```
+
+### Games and apps are analysed differently
+
+A game and an app fail review for different reasons, so playgate decides which
+one it is looking at and focuses accordingly. It detects a **game** from the
+engine (Unity, Godot, Unreal, Defold, libGDX, Flame, Phaser…), a Play Games
+Services dependency, or `android:appCategory="game"`; set `app_type` in
+`playgate.toml` or pass `--profile game|app` to override. The report states
+the profile and *why*, then groups findings into that profile's risk areas.
+
+| | Game | App |
+| --- | --- | --- |
+| Extra checks | currency/unlocks kept only on the device (any engine), purchases granted without server verification, loot-box odds not disclosed, ads SDK in a kids game without child-directed settings, leaderboard scores without Play Integrity, cheat/debug hooks in shipping code, missing `appCategory="game"` | a website wrapped in a WebView (Minimum functionality), Health Connect declaration |
+| Both | reviewer can't get past the login (Play *App access*) | |
+| Risk areas in the report | economy & saves · purchases · loot boxes · ads & young players · cheating · binary hardening · secrets · store setup | accounts & reviewer access · data & privacy · network & WebView · components & deep links · store functionality · secrets |
+| Extra release gates | loot-box odds, Families ads, server-verified purchases | App access, not a wrapped website, Health Connect |
 
 ### `playgate release` — a submission dry-run
 
@@ -266,7 +283,7 @@ What it deliberately is **not** — stated in every report so a clean run is nev
 
 ## Benchmark
 
-`python -m benchmarks.run` runs a labelled corpus modelled on the vulnerability classes of DIVA, InsecureBankv2, OVAA and AndroGoat, plus benign projects containing the safe version of every flagged pattern. Current result ([benchmarks/RESULTS.md](benchmarks/RESULTS.md)): **87/87 expected findings, 0 false positives, 50/50 rules exercised** — and CI fails if that regresses. The corpus was written alongside the rules, so treat it as a regression gate, not an accuracy claim; [benchmarks/README.md](benchmarks/README.md) describes how to benchmark against the real vulnerable apps.
+`python -m benchmarks.run` runs a labelled corpus modelled on the vulnerability classes of DIVA, InsecureBankv2, OVAA and AndroGoat, plus benign projects containing the safe version of every flagged pattern. Current result ([benchmarks/RESULTS.md](benchmarks/RESULTS.md)): **100/100 expected findings, 0 false positives, 60/60 rules exercised** — and CI fails if that regresses. The corpus was written alongside the rules, so treat it as a regression gate, not an accuracy claim; [benchmarks/README.md](benchmarks/README.md) describes how to benchmark against the real vulnerable apps.
 
 ## Limits
 

@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 
 from . import __version__
 from .models import Category, Finding, Report, Severity
+from .profile import profile_areas
 from .standards import SCOPE, standards_for
 
 ANSI = {
@@ -70,6 +71,16 @@ def to_text(report: Report, color: bool = True) -> str:
     lines.append(f"findings: {summary}")
     lines.append(f"play rejection risk: {band} ({report.rejection_score()}/100)")
     lines.append(f"  {BAND_BLURB[band]}")
+    lines.append("")
+    lines.append(f"profile: {report.profile}  ({'; '.join(report.profile_signals)})")
+    head = f"{report.profile.upper()} RISK AREAS"
+    lines.append(f"{BOLD}{head}{RESET}" if color else head)
+    for a in profile_areas(report):
+        if a["findings"]:
+            n = len(a["findings"])
+            lines.append(f"  [!] {a['area']} — {n} finding(s): {', '.join(dict.fromkeys(a['findings']))}")
+        else:
+            lines.append(f"  [ok] {a['area']}")
     lines.append("")
 
     security = report.by_category(Category.SECURITY)
@@ -146,7 +157,17 @@ def to_markdown(report: Report) -> str:
         "> This score is a weighted sum of the policy findings below, capped at 100. It ranks "
         "work; it is not a probability, and a clean report is not an approval.",
         "",
+        f"## {report.profile.capitalize()} risk areas",
+        "",
+        f"Profile **{report.profile}** — {'; '.join(report.profile_signals)}.",
+        "",
+        "| Area | Status | Findings |",
+        "| --- | --- | --- |",
     ]
+    for a in profile_areas(report):
+        found = ", ".join(f"`{i}`" for i in dict.fromkeys(a["findings"])) or "—"
+        lines.append(f"| {a['area']} | {'issues' if a['findings'] else 'clean'} | {found} |")
+    lines.append("")
 
     security = report.by_category(Category.SECURITY)
     policy = report.by_category(Category.POLICY)
@@ -240,6 +261,7 @@ def _play_gates(report: Report) -> list[tuple[str, list[tuple[str, str, str]]]]:
              listing_gate({"PLY-PROMO-TERMS", "PLY-KEYWORD-STUFFING", "PLY-TITLE-EMOJI", "PLY-TITLE-CAPS"}),
              "Main store listing"),
         ]),
+        *_play_profile_phase(report, present, listing_gate),
         ("Monetisation  (Play Console › Monetise)", [
             ("Play Billing for digital goods", listing_gate({"PLY-BILLING"}),
              "Products › In-app products / Subscriptions"),
@@ -349,12 +371,35 @@ def release_json(report: Report, store: str = "auto") -> list[dict]:
     return out
 
 
+def _play_profile_phase(report: Report, present: set[str], listing_gate) -> list:
+    if report.profile == "game":
+        return [("Game policy  (Play Console › App content / Monetise)", [
+            ("Loot box odds disclosed before purchase", _gate(present, {"GAME-LOOTBOX-ODDS"}),
+             "show per-item odds before payment"),
+            ("Ads comply with Families policy", _gate(present, {"GAME-ADS-CHILDREN", "PLY-ADID-CHILDREN"}),
+             "child-directed ad requests, certified SDKs, no AD_ID"),
+            ("Purchases verified server-side", _gate(present, {"GAME-IAP-NO-SERVER-CHECK", "UNI-IAP-NOVALIDATION"}),
+             "verify purchase tokens with the Play Developer API"),
+            ("Reviewer can get in (App access)", listing_gate({"PLY-REVIEW-ACCESS"}),
+             "App content › App access — test account"),
+        ])]
+    return [("App access & functionality  (Play Console › App content)", [
+        ("Reviewer can get in (App access)", listing_gate({"PLY-REVIEW-ACCESS"}),
+         "App content › App access — test account and instructions"),
+        ("More than a wrapped website", _gate(present, {"APP-WEBVIEW-WRAPPER"}),
+         "Minimum functionality / Webview spam policy"),
+        ("Health Connect declared", _gate(present, {"APP-HEALTH-DECLARATION"}),
+         "App content › Health apps declaration"),
+    ])]
+
+
 def to_release_checklist(report: Report, color: bool = False, store: str = "auto") -> str:
     """A store-submission dry-run: every real gate as PASS / FAIL / NEEDS-INFO."""
     lines = [
         "",
         f"playgate release readiness — {report.root}",
-        f"project type: {report.kind}   platforms: {', '.join(report.platforms) or 'unknown'}",
+        f"project type: {report.kind}   platforms: {', '.join(report.platforms) or 'unknown'}   "
+        f"profile: {report.profile}",
     ]
     for s in stores_for(report, store):
         name, _, reviewer = STORES[s]
@@ -502,6 +547,8 @@ def to_json(report: Report) -> str:
         "rejection_score": report.rejection_score(),
         "rejection_band": report.rejection_band(),
         "platforms": report.platforms,
+        "profile": {"type": report.profile, "signals": report.profile_signals,
+                    "areas": profile_areas(report)},
         "standards": SCOPE,
         "inputs": report.inputs,
         "notes": report.notes,

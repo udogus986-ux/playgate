@@ -130,6 +130,13 @@ STANDARDS_MAP: dict[str, Standards] = {
     "DEX-WEAK-CIPHER": Standards(cwe=(327,), masvs=("MASVS-CRYPTO",), owasp_mobile="M10"),
     "DEX-WEAK-HASH": Standards(cwe=(328,), masvs=("MASVS-CRYPTO",), owasp_mobile="M10"),
     "DEX-ADID-READ": _PRIVACY,
+    # Game profile
+    "GAME-LOCAL-CURRENCY": _CLIENT_TRUST,
+    "GAME-IAP-NO-SERVER-CHECK": Standards(cwe=(602, 345), masvs=("MASVS-CODE",), owasp_mobile="M4"),
+    "GAME-SCORE-NO-INTEGRITY": Standards(cwe=(602,), masvs=("MASVS-RESILIENCE",), owasp_mobile="M7"),
+    "GAME-CHEAT-LEFTOVER": Standards(cwe=(489,), masvs=("MASVS-RESILIENCE",), owasp_mobile="M7"),
+    # App profile
+    "APP-HEALTH-DECLARATION": _PRIVACY,
     # Unity
     "UNI-MONO-BACKEND": Standards(cwe=(656,), masvs=("MASVS-RESILIENCE",), owasp_mobile="M7"),
     "UNI-PLAYERPREFS-ECONOMY": _CLIENT_TRUST,
